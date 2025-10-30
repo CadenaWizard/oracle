@@ -1,6 +1,9 @@
 # oracle
 
-Oracle used to produce prices / results for bets
+Oracle used to produce prices / results for bets.
+Check out our basic demo page under:
+
+https://oracle.purabitcoin.com/demo/
 
 [WARNING]
 ====
