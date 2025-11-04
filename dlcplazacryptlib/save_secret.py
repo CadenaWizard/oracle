@@ -1,4 +1,9 @@
 #!/usr/bin/python
+#
+# Copyright (c) 2025-present Cadena Bitcoin
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+#
 # Command-line tool to set the secret (mnemonic/seed/entropy)
 # It asks for the seed phrase (mnemonic), and a file encryption password
 #

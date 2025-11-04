@@ -1,3 +1,7 @@
+# Copyright (c) 2025-present Cadena Bitcoin
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+#
 # Test the dlcplazacryptlib library through its C-style interface
 # Test the methods used by the app
 

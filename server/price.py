@@ -1,3 +1,7 @@
+# Copyright (c) 2025-present Cadena Bitcoin
+# Distributed under the MIT software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 from price_common import PriceInfo
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource

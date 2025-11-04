@@ -1,3 +1,7 @@
+// Copyright (c) 2025-present Cadena Bitcoin
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 use crate::crypto::{
     aggregate_secret_values, message_hash, schnorrsig_compute_sig_point, schnorrsig_decompose,
 };

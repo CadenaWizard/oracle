@@ -1,3 +1,7 @@
+// Copyright (c) 2025-present Cadena Bitcoin
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 /// Playground for Discrete Log Contracts (DLC) and Adaptor Signatures, written in Rust, focusing on the cryptography.
 /// Partly insipred by [rust-dlc](https://github.com/p2pderivatives/rust-dlc)
 mod adaptor_flow;

@@ -1,3 +1,7 @@
+// Copyright (c) 2025-present Cadena Bitcoin
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 use bitcoin::hashes::{sha256, sha256t_hash_newtype, Hash};
 use bitcoin::key::Secp256k1;
 use bitcoin::secp256k1::{Message, PublicKey, SecretKey, XOnlyPublicKey};
