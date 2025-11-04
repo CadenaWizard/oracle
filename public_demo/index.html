@@ -1,0 +1,330 @@
+<html>
+
+<head>
+    <script>
+        const url_base = "/api/v0/";
+
+        var symbols = [];
+        var event_classes = [];
+        var sel_event_class = 0;
+        var prices = [];
+        var sel_event_timestamp = 0;
+        var sel_event_id = "";
+        var sel_event = null;
+        var digits = 4;
+        var price_unit = 1;
+
+        async function fetch_json(url) {
+            try {
+                full_url = url_base + url;
+                const response = await fetch(full_url);
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(error.message);
+                return "";
+            }
+        }
+
+        async function fetch_text(url) {
+            try {
+                full_url = url_base + url;
+                const response = await fetch(full_url);
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+                const res = await response.text();
+                // const res = await response.json();
+                // console.log(res);
+                return res;
+            } catch (error) {
+                console.error(error.message);
+                return "";
+            }
+        }
+
+        async function page_load() {
+            document.getElementById("step2").hidden = true;
+            document.getElementById("step3").hidden = true;
+            document.getElementById("step4").hidden = true;
+
+            await load();
+        }
+
+        async function load() {
+            // Get symbols from the event classes
+            event_classes = await fetch_json("event/event_classes");
+            sel_event_class = 0
+            await load_symbol1();
+            // if (event_classes.length > sel_event_class) {
+            //     if (event_classes[sel_event_class]["desc"]["definition"]) {
+            //         await load_symbol1(event_classes[sel_event_class]["desc"]["definition"])
+            //     }
+            // }
+
+            symbols = [];
+            var symbols_str = "";
+            for (var i = 0; i < event_classes.length; ++i) {
+                const symbol = event_classes[i]["desc"]["definition"];
+                symbols.push(symbol);
+                symbols_str += symbol + " ";
+            }
+            await load_symbols1(symbols);
+
+            const status = await fetch_text("oracle/oracle_status");
+            document.getElementById("out_status").innerText = status;
+
+            prices = await fetch_json("price_info/current_all");
+            await load_prices1(prices);
+        }
+
+        async function load_symbols1(symbols) {
+            var htm = "";
+            for (var s in symbols) {
+                htm += "<div onclick=\"select_symbol1('" + s + "')\" style='font-weight: bold;'>" + symbols[s] + "</div>\n\r";
+            }
+            document.getElementById("event_classes1").innerHTML = htm;
+
+            htm = "";
+            for (var s in symbols) {
+                htm += "<div onclick=\"select_symbol2('" + s + "')\" style='font-weight: bold;'>" + symbols[s] + "</div>\n\r";
+            }
+            document.getElementById("event_classes2").innerHTML = htm;
+        }
+
+        async function select_symbol1(index) {
+            if (event_classes.length > index) {
+                sel_event_class = index;
+            }
+            await load_symbol1();
+        }
+
+        async function select_symbol2(index) {
+            if (event_classes.length > index) {
+                sel_event_class = index;
+            }
+            await load_symbol1();
+            document.getElementById("step2").hidden = false;
+            document.getElementById("step3").hidden = true;
+            document.getElementById("step4").hidden = true;
+        }
+
+        async function load_symbol1() {
+            document.getElementById("event_class1").innerText = "";
+            if (event_classes.length > sel_event_class) {
+                if (event_classes[sel_event_class]) {
+                    document.getElementById("event_class1").innerText = JSON.stringify(event_classes[sel_event_class], null, 2);
+
+                    // price min/max
+                    digits = event_classes[sel_event_class]["desc"]["range_digits"];
+                    const min = event_classes[sel_event_class]["desc"]["range_min_value"];
+                    const max = event_classes[sel_event_class]["desc"]["range_max_value"];
+                    price_unit = event_classes[sel_event_class]["desc"]["range_unit"];
+                    document.getElementById("input_price").min = min;
+                    document.getElementById("input_price").max = max;
+                    document.getElementById("input_price").step = price_unit;
+                    // set a value, based on the current
+                    document.getElementById("input_price").value = "99900"; // placeholder
+                    if (prices) {
+                        const def = event_classes[sel_event_class]["desc"]["definition"];
+                        if (def) {
+                            if (prices[def]) {
+                                const the_price = prices[def].price;
+                                if (the_price) {
+                                    document.getElementById("input_price").value = Math.round(the_price);
+                                }
+                            }
+                        }
+                    }
+
+                    document.getElementById("s3_pricerange").innerText = "Valid range is: " + min + " -- " + max + ", step: " + price_unit + " (" + digits + " digits)";
+
+                }
+            }
+        }
+
+        async function load_prices1(prices) {
+            var htm = "<table>";
+            for (var p in prices) {
+                const pp = prices[p];
+                htm += "<tr><td style='font-weight: bold;'>" + pp.symbol + "</td>" +
+                    "<td style='font-weight: bold;'>" + pp.price + "</td>" +
+                    "<td style='font-size: small;'>" + pp.source + "</td></tr>";
+            }
+            htm += "</table";
+            document.getElementById("prices1").innerHTML = htm;
+        }
+
+        function find_event_time(start, stop, step, target) {
+            var t = start;
+            while (t < target && t < stop) {
+                t += step;
+            }
+            return t;
+        }
+
+        async function fetch_next_event(event_class, period) {
+            sel_event = await fetch_json("event/next_event?definition=" + event_class + "&period=" + period);
+        }
+
+        async function goto_step3() {
+            const days = document.getElementById("input_days").value;
+            const period = days * 86400 + 1;
+            await fetch_next_event(event_classes[sel_event_class]["class_id"], period);
+
+            event_time = sel_event["time_utc"]
+            document.getElementById("s3_timestamp").innerText = event_time + " (" +
+                sel_event["time_utc_nice"] + " utc, " +
+                (new Date(event_time * 1000)).toLocaleString() + " local)";
+            document.getElementById("s3_eventid").innerText = sel_event["event_id"]
+            document.getElementById("event1").innerText = JSON.stringify(sel_event, null, 2);
+            document.getElementById("out_ora_pubkey").innerText = sel_event.signer_public_key;
+            document.getElementById("out_msgtemplate").innerText = sel_event.string_template;
+            document.getElementById("out_nonces").innerText = sel_event.nonces.map(n => ("\n" + n)).join(" ");
+
+            document.getElementById("step3").hidden = false;
+            document.getElementById("step4").hidden = true;
+        }
+
+        function normalize_price(raw, digits, unit) {
+            const price = parseInt(raw, 10);
+            const price_adjusted = Math.round(raw / price_unit);
+            var str = price_adjusted.toString();
+            while (str.length < digits) {
+                str = "0" + str;
+            }
+            return str;
+        }
+
+        async function goto_step4() {
+            document.getElementById("step4").hidden = false;
+            const price_digits = normalize_price(document.getElementById("input_price").value, digits, price_unit);
+            document.getElementById("out_digits").innerText = price_digits;
+        }
+    </script>
+</head>
+
+<body onload="page_load()">
+    <h2>DLC Plaza Oracle Server Demo page</h2>
+
+    <hr>
+
+    <div>In order to create transactions for a bet (a DLC CET):</div>
+
+    <div>
+        <div>1. Select one event type / exchange symbol: (click on a ticker below)</div>
+        <div id="event_classes2" ></div>
+        <br/>
+    </div>
+
+    <div id="step2">
+        <div>
+            <div>2. Select an outcome time, in days from now. Valid range: 1 -- 180</div>
+            <div>
+                <input onchange="goto_step3()" id="input_days"type="number" name="input_days" value="30" min="1" max="180"></input>
+                <button onclick="goto_step3()">Continue</button>
+            </div>
+            <br/>
+        </div>
+
+        <div id="step3">
+            <div>
+                <div>
+                    <span>The timestamp of the next event is: </span><span id="s3_timestamp"></span>
+                </div>
+                <div>
+                    <span>The ID the next event is: </span><span id="s3_eventid"></span>
+                </div>
+                <div>
+                    <span>3. Select an outcome price. </span>
+                    <span id="s3_pricerange"></span>
+                </div>
+                <div>
+                    <input onchange="goto_step4()" id="input_price"type="number" name="input_price" value="0" min="0" max="200000" step="1"></input>
+                    <button onclick="goto_step4()">Continue</button>
+                </div>
+                <br/>
+            </div>
+
+            <div id="step4">
+                <div>
+                    <div>Now all needed info is available for setting up the CETs:</div>
+                    <br/>
+                    <table style="background-color: azure;">
+                        <tr>
+                            <td>Orcale public key:</td>
+                            <td><pre id="out_ora_pubkey"></pre></td>
+                        </tr>
+                        <tr>
+                            <td>Digits:</td>
+                            <td><pre id="out_digits"></pre></td>
+                        </tr>
+                        <tr>
+                            <td>Message template: <br/> (to be signed for each digit)</td>
+                            <td><pre id="out_msgtemplate"></pre></td>
+                        </tr>
+                        <tr>
+                            <td>Nonces: <br/>one per digit</td>
+                            <td><pre id="out_nonces"></pre></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr/>
+
+    <table border="0">
+        <tr>
+            <td>
+                <div>
+                    Event classes:
+                </div>
+                <div id="event_classes1"></div>
+            </td>
+            <td>
+                <div>
+                    Event class details:
+                </div>
+                <pre id="event_class1" style="font-size: small;"/>
+            </td>
+            <td>
+                <div>
+                    Event details:
+                </div>
+                <pre id="event1" style="font-size: small;"/>
+            </td>
+        </tr>
+    </table>
+    <table border="0" style="background-color: lightgray;">
+        <tr>
+            <td colspan="3">
+                <div>
+                    Current prices:
+                </div>
+                <div id="prices1" />
+            </td>
+        </tr>
+        <tr>
+            <td colspan="3">
+                <div>
+                    Status:
+                </div>
+                <div>
+                    <pre id="out_status" style="font-size: small;"/>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <hr/>
+
+    <div>
+        <button onclick="load()">Reload</button>
+    </div>
+</body>
+
+</html>

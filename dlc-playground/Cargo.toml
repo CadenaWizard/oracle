@@ -1,0 +1,17 @@
+[package]
+name = "dlc-playground"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitcoin = "0.32.4"
+hex-conservative = "0.3.0"
+reqwest = { version = "0.12.12", features = ["json"] }
+secp256k1-sys = "0.10.0"
+secp256k1-zkp = "0.11.0"
+serde = { version = "1.0.217", features = ["derive"] }
+tokio = { version = "1.43.0", features = ["rt", "macros", "rt-multi-thread"] }
+
+[features]
+default = ["std"]
+std = ["bitcoin/std", "secp256k1-zkp/rand-std"]

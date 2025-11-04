@@ -1,11 +1,77 @@
-# oracle
+# Oracle Server
 
 Oracle used to produce prices / results for bets.
 Check out our basic demo page under:
 
 https://oracle.purabitcoin.com/demo/
 
-[WARNING]
-====
-Coming online in 3, 2, 1...
-====
+
+## Setup, local development
+
+Set up the environment, install dependencies:
+
+```
+pip install -r ./requirements.txt
+```
+
+Build the internal Rust library, requires Rust/Cargo, install it as a Python module:
+
+```
+cd dlcplazacryptlib && maturin develop && cd ..
+```
+
+(or with venv:)
+```
+cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
+```
+
+Start the server:
+```
+./start_oracle_server_dev.sh
+```
+(or: )
+```
+fastapi dev server/main.py
+```
+
+See status
+```
+curl http://localhost:8000/api/v0/oracle/oracle_status
+```
+
+Run more sample calls:
+```
+python3 ./server/test_api.py
+```
+
+See API doc:
+http://localhost:8000/docs
+
+See demo web page:
+http://localhost:8000/demo/
+
+
+
+## High-level API Description
+
+### Oracle info
+
+- General info, such as the oracle public key
+- Oracle status, inc. number of event, future events, server, time, etc.
+
+### Events
+
+- Get events, with various filters -- time range, symbol.
+- Events also include nonces
+- For (past) events with outcome, outcome is also included, including the attestation signatures
+- Same but get only event IDs
+- Get one event by ID
+
+### Price
+
+- Get current price, price info for a symbol, or all.
+
+### Testing
+
+- Get forced premature test outcome for a future event (using dummy price)
+
