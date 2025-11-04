@@ -25,6 +25,14 @@ cd dlcplazacryptlib && maturin develop && cd ..
 cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
 ```
 
+Set up the secret key used:
+```sh
+python3 ./dlcplazacryptlib/save_secret.py --set --file secret.sec
+```
+
+Enter your securely generated secret mnemonic, be sure to back it up!
+
+
 Start the server:
 ```
 ./start_oracle_server_dev.sh
