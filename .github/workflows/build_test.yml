@@ -29,4 +29,5 @@ jobs:
     - name: Run unit tests
       run: |
         ./venv/bin/python3 ./server/test_util.py
+        ./venv/bin/python3 ./server/test_event.py
 
