@@ -2,9 +2,10 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+import dlcplazacryptlib
+from dto import EventDescriptionDto
 from price import PriceSource
 from util import power_of_ten
-import dlcplazacryptlib
 
 from datetime import datetime, UTC
 import copy
@@ -14,7 +15,9 @@ import sys
 import _thread
 import time
 
-HEX_ALPHABET = "0123456789abcdef"
+
+EVENT_STRING_TEMPLATE_DEFAULT = "Outcome:{event_id}:{digit_index}:{digit_outcome}"
+
 
 # Singleton app instance, created on demand, in _get_singleton_instance()
 _singleton_app_instance = None
@@ -26,34 +29,37 @@ class EventDescription:
     """Common attributes of an event"""
 
     def __init__(self, definition: str, digits: int, digit_low_pos: int):
-        self.definition = definition.upper()
+        dto = EventDescriptionDto(
+            definition=definition.upper(),
+            digits=digits,
+            digit_low_pos=digit_low_pos,
+            event_string_template=EVENT_STRING_TEMPLATE_DEFAULT)
+        self.dto = dto
         self.event_type = "numeric"
-        self.range_digits = digits
-        self.range_digit_low_pos = digit_low_pos
 
     def get_minimum_value(self) -> float:
         return 0
 
     # Compute smallest unit (1, 10, 100, ...) from digit_low_pos (0, 1, 2, ...)
     def get_unit(self) -> int:
-        return power_of_ten(self.range_digit_low_pos)
+        return power_of_ten(self.dto.range_digit_low_pos)
 
     # Compute high digit pos, from low digit pos and digits
     # E.g. low=0, digits=6 => high=5
     def get_digit_high_pos(self) -> int:
-        return self.range_digit_low_pos + self.range_digits - 1
+        return self.dto.range_digit_low_pos + self.dto.range_digits - 1
 
     def get_maximum_value(self) -> float:
-        high_digit = self.get_digit_high_pos()
-        return power_of_ten(high_digit + 1) - 1
+        max_val_units = power_of_ten(self.dto.range_digits) - 1
+        return max_val_units * self.get_unit()
 
     # Template for the string for a particular event.
     # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
-    def event_string_template() -> str:
-        return "Outcome:{event_id}:{digit_index}:{digit_outcome}"
+    def event_string_template(self) -> str:
+        return self.dto.event_string_template
 
-    def event_string_template_for_id(event_id: str) -> str:
-        template = EventDescription.event_string_template()
+    def event_string_template_for_id(self, event_id: str) -> str:
+        template = self.dto.event_string_template
         return template.replace("{event_id}", event_id)
 
     # Normalize value into digits, e.g. 85652 -> [0,8,5,6,5]  (5 digits, unit 10.0)
@@ -71,7 +77,7 @@ class EventDescription:
         normalized = round((value - min_val) / unit)
         # convert to digits
         normalized_str = str(normalized)
-        n = self.range_digits
+        n = self.dto.range_digits
         while len(normalized_str) < n:
             normalized_str = '0' + normalized_str
         res = []
@@ -82,7 +88,7 @@ class EventDescription:
     # Convert from digits to actual value, e.g. e.g. [0,8,5,6,5] -> 85650 (5 digits, unit 10.0)
     def digits_to_value(self, digits: list[int]) -> float:
         v = 0
-        n = self.range_digits
+        n = self.dto.range_digits
         for i in range(n):
             v = 10 * v + digits[i]
         value = v * self.get_unit() + self.get_minimum_value()
@@ -90,24 +96,20 @@ class EventDescription:
 
     def to_info(self):
         return {
-            "definition": self.definition,
+            "definition": self.dto.definition,
             "event_type": self.event_type,
-            "range_digits": self.range_digits,
-            "range_digit_low_pos": self.range_digit_low_pos,
+            "range_digits": self.dto.range_digits,
+            "range_digit_low_pos": self.dto.range_digit_low_pos,
             "range_digit_high_pos": self.get_digit_high_pos(),
             "range_unit": self.get_unit(),
             "range_min_value": self.get_minimum_value(),
             "range_max_value": self.get_maximum_value(),
         }
 
-    # The formal description of event, e.g. for market rate events the symbol
-    definition: str = "BTCUSD"
+    dto: EventDescriptionDto
     # Event type: supported values: 'numeric'
     event_type: str = "numeric"
-    # Number of digits used to represent the values in range
-    range_digits: int = 5
-    # The position of the low digit, 0 for rightmost unit '1', 1 for 10, 2, for 100.
-    range_digit_low_pos: int = 0
+
 
 class EventClass:
     """An event class, typically for periodically repeating similar events."""
