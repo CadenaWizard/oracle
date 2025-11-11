@@ -48,7 +48,7 @@ def power_of_ten(exponent: int) -> int:
         return [1, 10, 100, 1000, 10000, 100000, 1000000][exponent]
     # General, multiplication
     pow = 1
-    for i in range(exponent):
+    for _i in range(exponent):
         pow *= 10
     return pow
 
