@@ -1,5 +1,6 @@
 fastapi[standard]
 maturin        # for Rust
+bitcoinlib
 requests
 typing
 
