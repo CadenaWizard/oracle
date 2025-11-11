@@ -3,6 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from price import PriceSource
+from util import power_of_ten
 import dlcplazacryptlib
 
 from datetime import datetime, UTC
@@ -20,37 +21,6 @@ _singleton_app_instance = None
 
 _outcome_loop_thread_started = False
 
-class HexValue:
-    def get_default():
-        return "0102030405060708091011121314151617181920212323242526272829303132"
-
-    def get_random():
-        return get_random_len(32)
-
-    def get_default_len(l: int):
-        s = ""
-        cnt = 0
-        while len(s) < l:
-            s += str(cnt)
-            cnt = (cnt +1) % 10
-        return s
-
-    def get_random_len(l: int):
-        s = ""
-        while len(s) < l:
-            s += HEX_ALPHABET[random.randrange(16)]
-        return s
-
-# Get power of 10 (global helper)
-def power_of_ten(exponent: int) -> int:
-    # Quick lookup
-    if exponent <= 6:
-        return [1, 10, 100, 1000, 10000, 100000, 1000000][exponent]
-    # General, multiplication
-    pow = 1
-    for _i in range(exponent):
-        pow *= 10
-    return pow
 
 class EventDescription:
     """Common attributes of an event"""

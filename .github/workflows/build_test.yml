@@ -27,5 +27,7 @@ jobs:
     - name: Build the internal Rust library, install it as a Python module
       run: cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
     - name: Run unit tests
-      run: ./venv/bin/python3 ./server/test_dto.py
+      run: |
+        ./venv/bin/python3 ./server/test_util.py
+        ./venv/bin/python3 ./server/test_dto.py
 
