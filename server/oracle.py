@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import dlcplazacryptlib
-from dto import EventDescriptionDto
+from dto import EventClassDto, EventDescriptionDto
 from price import PriceSource
 from util import power_of_ten
 
@@ -115,33 +115,35 @@ class EventClass:
     """An event class, typically for periodically repeating similar events."""
 
     def __init__(self, id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        self.event_class_id = id
-        self.desc = EventDescription(definition, digits, digit_low_pos)
-        self.repeat_first_time = repeat_first_time
-        self.repeat_period = repeat_period
-        self.repeat_last_time = repeat_last_time
+        definition_obj = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+        dto = EventClassDto(id=id, definition=definition, repeat_first_time=repeat_first_time, repeat_period=repeat_period, repeat_last_time=repeat_last_time)
+        self.dto = dto
+        self.desc = definition_obj
 
     def to_info(self):
         return {
-            "class_id": self.event_class_id,
+            "class_id": self.dto.id,
             "desc": self.desc.to_info(),
-            "repeat_first_time": self.repeat_first_time,
-            "repeat_period": self.repeat_period,
-            "repeat_last_time": self.repeat_last_time,
+            "repeat_first_time": self.dto.repeat_first_time,
+            "repeat_period": self.dto.repeat_period,
+            "repeat_last_time": self.dto.repeat_last_time,
         }
 
     # Get the next future event time following the given time, 0 on error
     def next_event_time(self, abs_time):
         # print("time", self.repeat_first_time, self.repeat_last_time, self.repeat_period, time)
-        if abs_time > self.repeat_last_time:
+        if abs_time > self.dto.repeat_last_time:
             # Out of range
             return 0
-        time_adj = max(self.repeat_first_time, abs_time)
-        period_count = int(math.floor((int(time_adj) - 1 - self.repeat_first_time) / self.repeat_period)) + 1
-        next_time = self.repeat_first_time + period_count * self.repeat_period
+        time_adj = max(self.dto.repeat_first_time, abs_time)
+        period_count = int(math.floor((int(time_adj) - 1 - self.dto.repeat_first_time) / self.dto.repeat_period)) + 1
+        next_time = self.dto.repeat_first_time + period_count * self.dto.repeat_period
+        if next_time > self.dto.repeat_last_time:
+            # Would be too late, out of range
+            return 0
         assert(next_time >= abs_time)
-        assert(next_time >= self.repeat_first_time)
-        assert(next_time <= self.repeat_last_time)
+        assert(next_time >= self.dto.repeat_first_time)
+        assert(next_time <= self.dto.repeat_last_time)
         return next_time
 
     # Get the ID of the next future event following the given time, 0 on error
@@ -152,14 +154,8 @@ class EventClass:
         next_event_id = Event.event_id_from_class_and_time(self, next_event_time)
         return next_event_id
 
-    event_class_id: str = ""
+    dto: EventClassDto
     desc: EventDescription
-    # The time of the first event (unix time)
-    repeat_first_time: int = 1704067200
-    # The repetition period, in secs (e.g. 86400 for one day)
-    repeat_period: int = 86400
-    # The time of the firstlast event (unix time)
-    repeat_last_time: int = 2019682800
 
     def get_sample_instance():
         return EventClass("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
@@ -255,7 +251,7 @@ class Event:
             # constructor with a class
             self.event_id = Event.event_id_from_class_and_time(event_class, time)
             self.desc = event_class.desc
-            self.event_class = event_class.event_class_id
+            self.event_class = event_class.dto.id
         else:
             self.event_id = id
             self.desc = EventDescription(definition, digits, unit)
@@ -268,7 +264,7 @@ class Event:
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
-        return event_class.event_class_id + str(time)
+        return event_class.dto.id + str(time)
 
     # Access nonces, Fill on-demand
     def get_nonces(self) -> Nonces:
@@ -338,12 +334,12 @@ class Oracle:
             self.add_event_class(ec)
 
     def add_event_class(self, ec):
-        print("Generating events.for event class '", ec.event_class_id, "' ...")
+        print("Generating events.for event class '", ec.dto.id, "' ...")
         events = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
         self.event_classes.append(ec)
         # Merge
         self.events = {**self.events, **events}
-        print(f"Loaded event class '{ec.event_class_id}', generated {len(events)} events, total {len(self.events)}")
+        print(f"Loaded event class '{ec.dto.id}', generated {len(events)} events, total {len(self.events)}")
 
     def print(self):
         now = time.time()
@@ -355,15 +351,15 @@ class Oracle:
 
     def generate_events_from_class(self, ec: EventClass, signer_public_key: str):
         e = {}
-        t = ec.repeat_first_time
+        t = ec.dto.repeat_first_time
         cnt = 0
-        while t <= ec.repeat_last_time:
+        while t <= ec.dto.repeat_last_time:
             # create event
             ev = Event(event_class=ec, time=t, signer_public_key=signer_public_key)
             eid = ev.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
             e[eid] = ev
-            t += ec.repeat_period
+            t += ec.dto.repeat_period
             cnt += 1
         return e
 

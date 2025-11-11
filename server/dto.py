@@ -15,3 +15,16 @@ class EventDescriptionDto:
         self.event_string_template = event_string_template
 
 
+class EventClassDto:
+    """An event class, typically for periodically repeating similar events."""
+
+    # - repeat_first_time: The time of the first event (unix time), e.g. 1704067200
+    # - repeat_period: The repetition period, in secs (e.g. 86400 for one day)
+    # - repeat_last_time: The time of the firstlast event (unix time), e.g. 2019682800
+    def __init__(self, id: str, definition: str, repeat_first_time: int, repeat_period: int, repeat_last_time: int):
+        self.id = id
+        self.definition = definition
+        self.repeat_first_time = repeat_first_time
+        self.repeat_period = repeat_period
+        self.repeat_last_time = repeat_last_time
+

@@ -1,4 +1,4 @@
-from oracle import EventDescription
+from oracle import EventClass, EventDescription
 
 import unittest
 
@@ -92,6 +92,69 @@ class EventDescriptionTestCase(unittest.TestCase):
             'range_unit': 1
         }
         self.assertEqual(info, expected)
+
+
+class EventClassTestCase(unittest.TestCase):
+    def event_obj(self):
+        return EventClass("btcusd", "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+
+    def test_to_info(self):
+        e = self.event_obj()
+        info = e.to_info()
+        expected = {
+            "class_id": "btcusd",
+            "desc": {
+                'definition': 'BTCUSD',
+                'event_type': 'numeric',
+                'range_digit_high_pos': 7,
+                'range_digit_low_pos': 0,
+                'range_digits': 8,
+                'range_max_value': 99999999,
+                'range_min_value': 0,
+                'range_unit': 1
+            },
+            "repeat_first_time": 1704067200,
+            "repeat_period": 86400,
+            "repeat_last_time": 2019682800
+        }
+        self.assertEqual(info, expected)
+
+    def test_next_event_time(self):
+        e = self.event_obj()
+        self.assertEqual(e.next_event_time(1704067200), 1704067200)
+        self.assertEqual(e.next_event_time(1704067201), 1704153600)
+        self.assertEqual(e.next_event_time(1704153599), 1704153600)
+        self.assertEqual(e.next_event_time(1704153600), 1704153600)
+        self.assertEqual(e.next_event_time(1704153601), 1704240000)
+        self.assertEqual(e.next_event_time(1704160000), 1704240000)
+        self.assertEqual(e.next_event_time(1704240000), 1704240000)
+        self.assertEqual(e.next_event_time(1704240001), 1704326400)
+        self.assertEqual(e.next_event_time(1714736400), 1714780800)
+        self.assertEqual(e.next_event_time(2019600000), 2019600000)
+        # Out of range
+        self.assertEqual(e.next_event_time(2019600001), 0)
+        self.assertEqual(e.next_event_time(2019682800), 0)
+        # Out of range
+        self.assertEqual(e.next_event_time(2020000000), 0)
+
+
+    def test_next_event_id(self):
+        e = self.event_obj()
+        self.assertEqual(e.next_event_id(1704067200), "btcusd1704067200")
+        self.assertEqual(e.next_event_id(1704067201), "btcusd1704153600")
+        self.assertEqual(e.next_event_id(1704153599), "btcusd1704153600")
+        self.assertEqual(e.next_event_id(1704153600), "btcusd1704153600")
+        self.assertEqual(e.next_event_id(1704153601), "btcusd1704240000")
+        self.assertEqual(e.next_event_id(1704160000), "btcusd1704240000")
+        self.assertEqual(e.next_event_id(1704240000), "btcusd1704240000")
+        self.assertEqual(e.next_event_id(1704240001), "btcusd1704326400")
+        self.assertEqual(e.next_event_id(1714736400), "btcusd1714780800")
+        self.assertEqual(e.next_event_id(2019600000), "btcusd2019600000")
+        # Out of range
+        self.assertEqual(e.next_event_id(2019600001), None)
+        self.assertEqual(e.next_event_id(2019682800), None)
+        # Out of range
+        self.assertEqual(e.next_event_id(2020000000), None)
 
 
 if __name__ == "__main__":
