@@ -8,7 +8,13 @@ https://oracle.purabitcoin.com/demo/
 
 ## Setup, local development
 
-Set up the environment, install dependencies:
+Set up a Python virtual environment (optional)
+
+```
+python3 -m venv ./venv
+```
+
+Install dependencies:
 
 ```
 pip install -r ./requirements.txt

@@ -17,7 +17,15 @@ jobs:
     steps:
     - name: Set up Python
       run: sudo apt-get install python3
+    - name: Set up Rust
+      run: sudo apt-get install cargo && rustup override set 1.81
     - uses: actions/checkout@v4
+    - name: Set up a Python virtual environment (needed for maturin)
+      run: python3 -m venv ./venv
+    - name: Install Python deps
+      run: ./venv/bin/pip3 install -r ./requirements.txt
+    - name: Build the internal Rust library, install it as a Python module
+      run: cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
     - name: Run unit tests
-      run: python3 ./server/test_dto.py
+      run: ./venv/bin/python3 ./server/test_dto.py
 
