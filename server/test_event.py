@@ -1,6 +1,6 @@
 import dlcplazacryptlib
 from dto import DigitOutcome, Nonce, OutcomeDto
-from oracle import EventClass, EventDescription, Nonces, Outcome
+from oracle import Event, EventClass, EventDescription, Nonces, Outcome
 
 import unittest
 
@@ -250,6 +250,48 @@ class OutcomeTestCase(unittest.TestCase):
         self.assertRaises(Exception, Outcome.create, outcome_value=outcome_value, event_id=event_id, event_desc=desc, created_time=2019600000, nonces=nonces4)
         # Invalid non-umeric value string
         self.assertRaises(Exception, Outcome.create, outcome_value="non_numeric_88000", event_id=event_id, event_desc=desc, created_time=2019600000, nonces=nonces)
+
+
+class EventTestCase(unittest.TestCase):
+    def test_new(self):
+        definition = "btcusd"
+        event_class = EventClass.new(definition, "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+        time = 1704067200 + 13 * 86400
+        id = definition + str(time)
+        e = Event.new(
+            time=time,
+            event_class=event_class,
+            signer_public_key="0123",
+        )
+        self.assertEqual(e.dto.event_id, id)
+        self.assertEqual(e.event_class, definition)
+        self.assertEqual(e.dto.time, time)
+        self.assertEqual(e.dto.signer_public_key, "0123")
+        self.assertEqual(e.dto.string_template, "Outcome:btcusd1705190400:{digit_index}:{digit_outcome}")
+
+        info = e.get_event_info()
+        # Nonces may change
+        self.assertEqual(len(info['nonces']), 8)
+        self.assertEqual(len(info['nonces'][0]), 66)
+        del info['nonces']
+        self.assertEqual(info, {
+            'event_id': 'btcusd1705190400',
+            'time_utc': 1705190400,
+            'time_utc_nice': '2024-01-14 00:00:00+00:00',
+            'definition': 'BTCUSD',
+            'event_type': 'numeric',
+            'range_digits': 8,
+            'range_digit_low_pos': 0,
+            'range_digit_high_pos': 7,
+            'range_unit': 1,
+            'range_min_value': 0,
+            'range_max_value': 99999999,
+            'event_class': 'btcusd',
+            'signer_public_key': '0123',
+            'string_template': 'Outcome:btcusd1705190400:{digit_index}:{digit_outcome}',
+            'has_outcome': False,
+        })
+
 
 if __name__ == "__main__":
     unittest.main() # run all tests

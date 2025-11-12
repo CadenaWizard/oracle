@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import dlcplazacryptlib
-from dto import DigitOutcome, EventClassDto, Nonce, OutcomeDto
+from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
 from price import PriceSource
 from util import power_of_ten
 
@@ -219,21 +219,20 @@ class Outcome:
 class Event:
     """An individual event"""
 
-    def __init__(self, time, event_class=None, id=None, definition=None, digits=None, unit=None, signer_public_key: str = ""):
-        if event_class is not None:
-            # constructor with a class
-            self.event_id = Event.event_id_from_class_and_time(event_class, time)
-            self.desc = event_class.desc
-            self.event_class = event_class.dto.id
-        else:
-            self.event_id = id
-            self.desc = EventDescription.new(definition, digits, unit)
-            self.event_class = ""
-        self.time = time
-        self.signer_public_key = signer_public_key
+    def __init__(self, dto: EventDto, event_class_dto: EventClassDto):
+        self.dto = dto
+        self.desc = EventClass(event_class_dto).desc
+        self.event_class = event_class_dto.id
         # set later on-demand, on first use
         self._nonces = None  
-        self.string_template = self.desc.event_string_template_for_id(self.event_id)
+        self.outcome = None
+
+    def new(time, event_class: EventClass, signer_public_key: str):
+        assert(event_class is not None)
+        event_id = Event.event_id_from_class_and_time(event_class, time)
+        string_template = event_class.desc.event_string_template_for_id(event_id)
+        event_dto = EventDto(event_id=event_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
+        return Event(event_dto, event_class.dto)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
@@ -242,16 +241,16 @@ class Event:
     # Access nonces, Fill on-demand
     def get_nonces(self) -> Nonces:
         if not self._nonces:
-            self._nonces = Nonces.generate(self.event_id, self.desc.range_digits)
+            self._nonces = Nonces.generate(self.dto.event_id, self.desc.range_digits)
         return self._nonces
 
     def get_event_info(self):
         has_outcome = (self.outcome is not None)
         nonces = self.get_nonces()
         info = {
-            "event_id": self.event_id,
-            "time_utc": self.time,
-            "time_utc_nice": str(datetime.fromtimestamp(self.time, UTC)),
+            "event_id": self.dto.event_id,
+            "time_utc": self.dto.time,
+            "time_utc_nice": str(datetime.fromtimestamp(self.dto.time, UTC)),
             "definition": self.desc.definition,
             "event_type": self.desc.event_type,
             "range_digits": self.desc.range_digits,
@@ -261,8 +260,8 @@ class Event:
             "range_min_value": self.desc.get_minimum_value(),
             "range_max_value": self.desc.get_maximum_value(),
             "event_class": self.event_class,
-            "signer_public_key": self.signer_public_key,
-            "string_template": self.string_template,
+            "signer_public_key": self.dto.signer_public_key,
+            "string_template": self.dto.string_template,
             "has_outcome": has_outcome,
             # public nonces
             "nonces": list(map(lambda n: n.nonce_pub, nonces.n)),
@@ -273,19 +272,6 @@ class Event:
             info["digits"] = list(map(lambda di: di.to_info(), self.outcome.digits))
         return info
 
-    event_id: str = ""
-    # The time of the event (unix time)
-    time: int = 1767222000
-    desc: EventDescription
-    # If it's the member of an event class
-    event_class: str = ""
-    # The signer (oracle) public key, to be used or used for signing
-    signer_public_key: str = ""
-    # A nonce for each digit, access it through get_nonces()
-    _nonces: Nonces = None
-    # The message string template for this event
-    string_template: str = ""
-    outcome: Outcome = None
 
 class Oracle:
     public_key: str = ""
@@ -329,7 +315,7 @@ class Oracle:
         cnt = 0
         while t <= ec.dto.repeat_last_time:
             # create event
-            ev = Event(event_class=ec, time=t, signer_public_key=signer_public_key)
+            ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
             eid = ev.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
             e[eid] = ev

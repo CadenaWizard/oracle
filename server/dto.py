@@ -60,3 +60,11 @@ class OutcomeDto:
         self.outcome_value = outcome_value
         self.created_time = created_time
 
+
+class EventDto:
+    def __init__(self, event_id: str, definition: str, time: int, string_template: str, signer_public_key: str):
+        self.event_id = event_id
+        self.definition = definition
+        self.time = time
+        self.string_template = string_template
+        self.signer_public_key = signer_public_key
