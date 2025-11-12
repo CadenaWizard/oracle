@@ -21,10 +21,49 @@ class EventClassDto:
     # - repeat_first_time: The time of the first event (unix time), e.g. 1704067200
     # - repeat_period: The repetition period, in secs (e.g. 86400 for one day)
     # - repeat_last_time: The time of the firstlast event (unix time), e.g. 2019682800
-    def __init__(self, id: str, definition: str, repeat_first_time: int, repeat_period: int, repeat_last_time: int):
+    def __init__(self, id: str, description: EventDescriptionDto, repeat_first_time: int, repeat_period: int, repeat_last_time: int):
         self.id = id
-        self.definition = definition
+        self.description = description
         self.repeat_first_time = repeat_first_time
         self.repeat_period = repeat_period
         self.repeat_last_time = repeat_last_time
+
+
+# Outcome for one digit: index, value, nonce, sig
+class DigitOutcome:
+    # index: 0-based.left-to-right index of the digit
+    # value: the outcome of the digit
+    # msg_str: the exact string message for signing
+    def __init__(self, event_id: str, index: int, value: int, nonce: str, signature: str, msg_str: str):
+        self.event_id = event_id
+        self.index = index
+        self.value = value
+        self.nonce = nonce
+        self.signature = signature
+        self.msg_str = msg_str
+
+    def to_info(self):
+        return {
+            "index": self.index,
+            "value": self.value,
+            "nonce": self.nonce,
+            "signature": self.signature,
+            "msg_str": self.msg_str,
+        }
+
+
+# A pair of nonces, public and secret, for an outcome digit of an event
+class Nonce:
+    def __init__(self, event_id: str, digit_index: int, nonce_pub: str, nonce_sec: str):
+        self.event_id = event_id
+        self.digit_index = digit_index
+        self.nonce_pub = nonce_pub
+        self.nonce_sec = nonce_sec
+
+
+class OutcomeDto:
+    def __init__(self, event_id: str, outcome_value: str, created_time: float):
+        self.event_id = event_id
+        self.outcome_value = outcome_value
+        self.created_time = created_time
 

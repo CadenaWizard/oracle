@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import dlcplazacryptlib
-from dto import EventClassDto, EventDescriptionDto
+from dto import DigitOutcome, EventClassDto, EventDescriptionDto, Nonce, OutcomeDto
 from price import PriceSource
 from util import power_of_ten
 
@@ -28,14 +28,17 @@ _outcome_loop_thread_started = False
 class EventDescription:
     """Common attributes of an event"""
 
-    def __init__(self, definition: str, digits: int, digit_low_pos: int):
+    def __init__(self, dto: EventDescriptionDto):
+        self.dto = dto
+        self.event_type = "numeric"
+
+    def new(definition: str, digits: int, digit_low_pos: int):
         dto = EventDescriptionDto(
             definition=definition.upper(),
             digits=digits,
             digit_low_pos=digit_low_pos,
             event_string_template=EVENT_STRING_TEMPLATE_DEFAULT)
-        self.dto = dto
-        self.event_type = "numeric"
+        return EventDescription(dto)
 
     def get_minimum_value(self) -> float:
         return 0
@@ -114,11 +117,14 @@ class EventDescription:
 class EventClass:
     """An event class, typically for periodically repeating similar events."""
 
-    def __init__(self, id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        definition_obj = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
-        dto = EventClassDto(id=id, definition=definition, repeat_first_time=repeat_first_time, repeat_period=repeat_period, repeat_last_time=repeat_last_time)
+    def __init__(self, dto: EventClassDto):
         self.dto = dto
-        self.desc = definition_obj
+        self.desc = EventDescription(dto.description)
+
+    def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
+        description_obj = EventDescription.new(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+        dto = EventClassDto(id=id, description=description_obj.dto, repeat_first_time=repeat_first_time, repeat_period=repeat_period, repeat_last_time=repeat_last_time)
+        return EventClass(dto)
 
     def to_info(self):
         return {
@@ -158,89 +164,58 @@ class EventClass:
     desc: EventDescription
 
     def get_sample_instance():
-        return EventClass("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
-
-# Outcome for one digit: index, value, nonce, sig
-class DigitOutcome:
-    # 0-based.left-to-right index of the digit
-    index: int
-    # the outcome of the digit
-    value: int
-    nonce: str
-    signature: str
-    # the exact string message for signing
-    msg_str: str
-
-    def __init__(self, index, value, nonce, signature, msg_str):
-        self.index = index
-        self.value = value
-        self.nonce = nonce
-        self.signature = signature
-        self.msg_str = msg_str
-
-    def to_info(self):
-        return {
-            "index": self.index,
-            "value": self.value,
-            "nonce": self.nonce,
-            "signature": self.signature,
-            "msg_str": self.msg_str,
-        }
+        return EventClass.new("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
 
 
 # Holds a set of nonces for an event (one per digit); public and secret nonces
+# Nonces to be used in the attestation signature
 class Nonces:
+    def __init__(self, nonces: list[Nonce]):
+        self.n = nonces
+
     # Generate nonces. Note: this is a bit slow due to key operations
-    def __init__(self, event_id, range_digits):
-        self.nonces_pub = []
-        self.nonces_sec = []
+    def generate(event_id, range_digits):
+        nonces = []
         for i in range(range_digits):
             # TODO use a non-deterministic, true random nonce here
             newnonce = dlcplazacryptlib.create_deterministic_nonce(event_id, i)
-            self.nonces_sec.append(newnonce[0])
-            self.nonces_pub.append(newnonce[1])
+            nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=newnonce[1], nonce_sec=newnonce[0])
+            nonces.append(nonce)
         print(".", end="")
-
-    # A nonce for each digit
-    # Nonces to be used in the attestation signature
-    # Public key, hex string
-    nonces_pub: list[str] = []
-    # The secret part of the nonces
-    nonces_sec: list[str] = []
+        return Nonces(nonces)
 
 
 class Outcome:
-    # Create the outcome. May throw
-    def __init__(self, outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: Nonces):
-        digit_values = event_desc.value_to_digits(outcome_value)
-        self.value = event_desc.digits_to_value(digit_values)
-        self.created_time = created_time
+    def __init__(self, dto: OutcomeDto, digit_outcomes: list[DigitOutcome]):
+        self.dto = dto
+        self.digits = digit_outcomes
 
+    # Create the outcome. May throw
+    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: Nonces):
+        outcome_dto = OutcomeDto(event_id=event_id, outcome_value=outcome_value, created_time=created_time)
+
+        digit_values = event_desc.value_to_digits(float(outcome_value))
         # the number of digits, nonces, signatures
-        n = event_desc.range_digits
-        # check that digit_values[], nonces_sec[], nonces_pub[] have enough elements
+        n = event_desc.dto.range_digits
+        # check that digit_values[], nonces.n[] have enough elements
         if len(digit_values) < n:
             raise Exception(f"Not enough digit_values, {digit_values} {n}")
-        if (len(nonces.nonces_pub) < n) | (len(nonces.nonces_sec) < n):
-            raise Exception(f"Not enough nonces, {len(nonces.nonces_pub)} {len(nonces.nonces_sec)} {n}")
+        if len(nonces.n) < n:
+            raise Exception(f"Not enough nonces, {len(nonces.n)} {n}")
 
-        self.digits = []
+        digits = []
         for i in range(n):
-            msg = Outcome.string_for_event(event_id, i, digit_values[i])
-            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces.nonces_sec[i], 0)
-            digit_outcome = DigitOutcome(i, digit_values[i], nonces.nonces_pub[i], sig, msg)
-            self.digits.append(digit_outcome)
+            msg = Outcome.string_for_event(event_desc, event_id, i, digit_values[i])
+            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces.n[i].nonce_sec, 0)
+            digit_outcome = DigitOutcome(event_id, i, digit_values[i], nonces.n[i].nonce_pub, sig, msg)
+            digits.append(digit_outcome)
+        return Outcome(dto=outcome_dto, digit_outcomes=digits)
 
-    def string_for_event(event_id: str, digit_index: int, digit_outcome: int) -> str:
-        s = EventDescription.event_string_template_for_id(event_id)
+    def string_for_event(event_desc: EventDescription, event_id: str, digit_index: int, digit_outcome: int) -> str:
+        s = event_desc.event_string_template_for_id(event_id)
         s = s.replace("{digit_index}", str(digit_index))
         s = s.replace("{digit_outcome}", str(digit_outcome))
         return s
-
-    value: float = ""
-    digits: list[DigitOutcome] = []
-    # Time when the outcome was processed, unix time
-    created_time: float = 0
 
 
 class Event:
@@ -254,13 +229,13 @@ class Event:
             self.event_class = event_class.dto.id
         else:
             self.event_id = id
-            self.desc = EventDescription(definition, digits, unit)
+            self.desc = EventDescription.new(definition, digits, unit)
             self.event_class = ""
         self.time = time
         self.signer_public_key = signer_public_key
         # set later on-demand, on first use
         self._nonces = None  
-        self.string_template = EventDescription.event_string_template_for_id(self.event_id)
+        self.string_template = self.desc.event_string_template_for_id(self.event_id)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
@@ -269,7 +244,7 @@ class Event:
     # Access nonces, Fill on-demand
     def get_nonces(self) -> Nonces:
         if not self._nonces:
-            self._nonces = Nonces(self.event_id, self.desc.range_digits)
+            self._nonces = Nonces.generate(self.event_id, self.desc.range_digits)
         return self._nonces
 
     def get_event_info(self):
@@ -291,7 +266,8 @@ class Event:
             "signer_public_key": self.signer_public_key,
             "string_template": self.string_template,
             "has_outcome": has_outcome,
-            "nonces": nonces.nonces_pub,
+            # public nonces
+            "nonces": list(map(lambda n: n.nonce_pub, nonces.n)),
         }
         if has_outcome:
             info["outcome_value"] = self.outcome.value
@@ -383,8 +359,8 @@ class Oracle:
         start_time = 1704067200 + 17 * 30 * 86400
         end_time = start_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
-            EventClass("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
-            EventClass("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
+            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
+            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
         ])
         return o
 
@@ -500,7 +476,7 @@ class Oracle:
             symbol = e.desc.definition
             value = self.get_price(symbol, now)
             try:
-                outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
+                outcome = Outcome.create(str(value), e.event_id, e.desc, now, e.get_nonces())
                 self.events[eid].outcome = outcome
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
@@ -530,7 +506,7 @@ class Oracle:
                 value = self.get_price(symbol, e.time)
                 now = time.time()
                 try:
-                    ecopy.outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
+                    ecopy.outcome = Outcome.create(str(value), e.event_id, e.desc, now, e.get_nonces())
                 except Exception as ex:
                     print(f"Exception while generating outcome, {ex}")
                     return {}
