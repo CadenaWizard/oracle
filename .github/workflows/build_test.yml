@@ -30,4 +30,5 @@ jobs:
       run: |
         ./venv/bin/python3 ./server/test_util.py
         ./venv/bin/python3 ./server/test_event.py
+        ./venv/bin/python3 ./server/test_oracle.py
 

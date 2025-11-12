@@ -190,7 +190,7 @@ class Outcome:
 
     # Create the outcome. May throw
     def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: Nonces):
-        outcome_dto = OutcomeDto(event_id=event_id, outcome_value=outcome_value, created_time=created_time)
+        outcome_dto = OutcomeDto(event_id=event_id, value=outcome_value, created_time=created_time)
 
         digit_values = event_desc.value_to_digits(float(outcome_value))
         # the number of digits, nonces, signatures
@@ -267,8 +267,8 @@ class Event:
             "nonces": list(map(lambda n: n.nonce_pub, nonces.n)),
         }
         if has_outcome:
-            info["outcome_value"] = self.outcome.value
-            info["outcome_time"] = self.outcome.created_time
+            info["outcome_value"] = self.outcome.dto.value
+            info["outcome_time"] = self.outcome.dto.created_time
             info["digits"] = list(map(lambda di: di.to_info(), self.outcome.digits))
         return info
 
@@ -337,16 +337,16 @@ class Oracle:
         for _eid, e in self._events.items():
             if e.outcome is not None:
                 continue
-            if e.time > now:
+            if e.dto.time > now:
                 continue
-            pe.append(e.event_id)
+            pe.append(e.dto.event_id)
         return pe
 
     """Count the number of future events"""
     def events_count_future(self, current_time: int):
         c = 0
         for _eid, e in self._events.items():
-            if e.time > current_time:
+            if e.dto.time > current_time:
                 c += 1
         return c
 
@@ -354,10 +354,10 @@ class Oracle:
         r = []
         for eid, e in self._events.items():
             if start_time != 0:
-                if e.time < start_time:
+                if e.dto.time < start_time:
                     continue
             if end_time != 0:
-                if e.time > end_time:
+                if e.dto.time > end_time:
                     continue
             if definition is not None:
                 if e.desc.definition != definition:
@@ -371,10 +371,10 @@ class Oracle:
         r = []
         for eid, e in self._events.items():
             if start_time != 0:
-                if e.time < start_time:
+                if e.dto.time < start_time:
                     continue
             if end_time != 0:
-                if e.time > end_time:
+                if e.dto.time > end_time:
                     continue
             if definition is not None:
                 if e.desc.definition != definition:
@@ -412,7 +412,7 @@ class Oracle:
         while t <= ec.dto.repeat_last_time:
             # create event
             ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
-            eid = ev.event_id
+            eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
             e[eid] = ev
             t += ec.dto.repeat_period
@@ -424,14 +424,17 @@ class Oracle:
             "public_key": self.public_key
         }
 
-    def get_oracle_status(self):
-        now = time.time()
-        future_count = self.events_count_future(now)
+    def get_oracle_status_time(self, current_time: float):
+        future_count = self.events_count_future(current_time)
         return {
             "future_event_count": future_count,
             "total_event_count": self.events_len(),
             "current_time_utc": round(time.time(), 3),
         }
+
+    def get_oracle_status(self):
+        now = time.time()
+        return self.get_oracle_status_time(now)
 
     def get_sample_instance(pubkey):
         o = Oracle(pubkey)
@@ -461,15 +464,17 @@ class Oracle:
         return e.get_event_info()
 
     # Note: Max count is capped at the hard limit of 100 events, to prevent large responses
-    def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100):
+    def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100) -> list[dict]:
         if definition is not None:
             definition = definition.upper()
-        events = self.events_get_filter(start_time, end_time, definition, 100)
-        event_infos = list(map(lambda e: e.get_event_info, events))
+        max_count_hard_limit = 100
+        max_count = min(max_count, max_count_hard_limit)
+        events = self.events_get_filter(start_time, end_time, definition, max_count)
+        event_infos = list(map(lambda e: e.get_event_info(), events))
         return event_infos
 
     # Note: a hard limit of 5000 limit is applied, to prevent very large responses
-    def get_event_ids_filter(self, start_time: int = 0, end_time = 0, definition: str = None):
+    def get_event_ids_filter(self, start_time: int = 0, end_time = 0, definition: str = None) -> list[str]:
         if definition is not None:
             definition = definition.upper()
         return self.events_get_ids_filter(start_time, end_time, definition, 5000)
@@ -497,26 +502,30 @@ class Oracle:
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price
 
-    def create_past_outcomes(self):
-        now = time.time()
-        print("Checking for past outcome generation ...", round(now))
+    def create_past_outcomes_time(self, current_time: float) -> int:
         cnt = 0
         # past events without outcome
-        pe = self.events_get_past_no_outcome(now)
+        pe = self.events_get_past_no_outcome(current_time)
         print(f"Found {len(pe)} events in the past without outcome")
         for eid in pe:
             e = self.events_get_by_id(eid)
             symbol = e.desc.definition
-            value = self.get_price(symbol, now)
+            value = self.get_price(symbol, current_time)
             try:
-                outcome = Outcome.create(str(value), e.event_id, e.desc, now, e.get_nonces())
-                self.events_set_outcome(e.event_id, outcome)
+                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.get_nonces())
+                self.events_set_outcome(e.dto.event_id, outcome)
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
                 # continue
             cnt += 1
         if cnt > 0:
             print(f"Generated outcomes for {cnt} past events")
+        return cnt
+
+    def create_past_outcomes(self) -> int:
+        now = time.time()
+        print("Checking for past outcome generation ...", round(now))
+        return self.create_past_outcomes_time(now)
 
     def dummy_outcome_for_event(self, event_id):
         e = self.events_get_by_id(event_id)
@@ -526,10 +535,10 @@ class Oracle:
             if e.outcome is None:
                 # has no outcome yet
                 symbol = e.desc.definition
-                value = self.get_price(symbol, e.time)
+                value = self.get_price(symbol, e.dto.time)
                 now = time.time()
                 try:
-                    ecopy.outcome = Outcome.create(str(value), e.event_id, e.desc, now, e.get_nonces())
+                    ecopy.outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, e.get_nonces())
                 except Exception as ex:
                     print(f"Exception while generating outcome, {ex}")
                     return {}

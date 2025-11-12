@@ -55,9 +55,9 @@ class Nonce:
 
 
 class OutcomeDto:
-    def __init__(self, event_id: str, outcome_value: str, created_time: float):
+    def __init__(self, event_id: str, value: str, created_time: float):
         self.event_id = event_id
-        self.outcome_value = outcome_value
+        self.value = value
         self.created_time = created_time
 
 
