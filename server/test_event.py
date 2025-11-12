@@ -1,15 +1,9 @@
 import dlcplazacryptlib
 from dto import DigitOutcome, Nonce, OutcomeDto
 from oracle import Event, EventClass, EventDescription, Nonces, Outcome
+from test_common import initialize_cryptlib
 
 import unittest
-
-
-def initialize_cryptlib():
-    """Call before every test case."""
-    dummy_entropy = "01010101010101010101010101010101"
-    xpub = dlcplazacryptlib.init_with_entropy(dummy_entropy, "signet")
-    print(f"cryptlib initialized, xpub: {xpub}")
 
 
 class EventDescriptionTestCase(unittest.TestCase):
