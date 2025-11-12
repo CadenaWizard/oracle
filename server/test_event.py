@@ -14,41 +14,41 @@ def initialize_cryptlib():
 
 class EventDescriptionTestCase(unittest.TestCase):
     def test_properties(self):
-        e = EventDescription.new("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0)
 
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 1)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_999_999)
-        self.assertEqual(e.event_string_template(), "Outcome:{event_id}:{digit_index}:{digit_outcome}")
+        self.assertEqual(e.event_string_template, "Outcome:{event_id}:{digit_index}:{digit_outcome}")
 
     def test_digit_pos(self):
-        e = EventDescription.new("BTCUSD", 6, 2)
+        e = EventDescription("BTCUSD", 6, 2)
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 100)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_999_900)
 
-        e = EventDescription.new("BTCUSD", 5, 3)
+        e = EventDescription("BTCUSD", 5, 3)
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 1000)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_999_000)
 
-        e = EventDescription.new("BTCUSD", 4, 4)
+        e = EventDescription("BTCUSD", 4, 4)
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 10000)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_990_000)
 
-        e = EventDescription.new("BTCUSD", 6, 4)
+        e = EventDescription("BTCUSD", 6, 4)
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 10000)
         self.assertEqual(e.get_digit_high_pos(), 9)
         self.assertEqual(e.get_maximum_value(), 9_999_990_000)
 
     def test_value_to_digits(self):
-        e = EventDescription.new("BTCUSD", 6, 2)
+        e = EventDescription("BTCUSD", 6, 2)
         self.assertEqual(e.value_to_digits(1), [0, 0, 0, 0, 0, 0])
         self.assertEqual(e.value_to_digits(200), [0, 0, 0, 0, 0, 2])
         self.assertEqual(e.value_to_digits(200), [0, 0, 0, 0, 0, 2])
@@ -59,21 +59,21 @@ class EventDescriptionTestCase(unittest.TestCase):
         self.assertEqual(e.digits_to_value([1, 2, 3, 4, 5, 6]), 12_345_600)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2, 3, 5]), 123_500)
 
-        e = EventDescription.new("BTCUSD", 5, 3)
+        e = EventDescription("BTCUSD", 5, 3)
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 1, 2, 3])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 1]), 1000)
         self.assertEqual(e.digits_to_value([1, 2, 3, 4, 5]), 12_345_000)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2, 3]), 123_000)
 
-        e = EventDescription.new("BTCUSD", 4, 4)
+        e = EventDescription("BTCUSD", 4, 4)
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 1, 2])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 1]), 10000)
         self.assertEqual(e.digits_to_value([1, 2, 3, 4]), 12_340_000)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2]), 120_000)
 
-        e = EventDescription.new("BTCUSD", 6, 4)
+        e = EventDescription("BTCUSD", 6, 4)
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 0, 0, 1, 2])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 0, 1]), 10000)
@@ -81,14 +81,14 @@ class EventDescriptionTestCase(unittest.TestCase):
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 1, 2]), 120_000)
 
     def test_template(self):
-        e = EventDescription.new("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0)
         event_id = "EID003"
         template = e.event_string_template_for_id(event_id)
         assert event_id in template, "EventID should be included in the template"
         self.assertEqual(template, "Outcome:EID003:{digit_index}:{digit_outcome}")
 
     def test_to_info(self):
-        e = EventDescription.new("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0)
         info = e.to_info()
         expected = {
             'definition': 'BTCUSD',
@@ -225,7 +225,7 @@ class OutcomeTestCase(unittest.TestCase):
     def test_create(self):
         event_id = "event123"
         digits = 7
-        desc = EventDescription.new("BTCUSD", digits, 0)
+        desc = EventDescription("BTCUSD", digits, 0)
         nonces = Nonces.generate(event_id, digits)
         outcome_value = "88001.52"
         o = Outcome.create(outcome_value=outcome_value, event_id=event_id, event_desc=desc, created_time=2019600000, nonces=nonces)

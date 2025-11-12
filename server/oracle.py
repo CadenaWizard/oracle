@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import dlcplazacryptlib
-from dto import DigitOutcome, EventClassDto, EventDescriptionDto, Nonce, OutcomeDto
+from dto import DigitOutcome, EventClassDto, Nonce, OutcomeDto
 from price import PriceSource
 from util import power_of_ten
 
@@ -28,41 +28,34 @@ _outcome_loop_thread_started = False
 class EventDescription:
     """Common attributes of an event"""
 
-    def __init__(self, dto: EventDescriptionDto):
-        self.dto = dto
+    def __init__(self, definition: str, digits: int, digit_low_pos: int):
+        self.definition = definition.upper()
+        self.range_digits = digits
+        self.range_digit_low_pos = digit_low_pos
+        # Template for the string for a particular event.
+        # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
+        self.event_string_template = EVENT_STRING_TEMPLATE_DEFAULT
+        # Event type: supported values: 'numeric'
         self.event_type = "numeric"
-
-    def new(definition: str, digits: int, digit_low_pos: int):
-        dto = EventDescriptionDto(
-            definition=definition.upper(),
-            digits=digits,
-            digit_low_pos=digit_low_pos,
-            event_string_template=EVENT_STRING_TEMPLATE_DEFAULT)
-        return EventDescription(dto)
 
     def get_minimum_value(self) -> float:
         return 0
 
     # Compute smallest unit (1, 10, 100, ...) from digit_low_pos (0, 1, 2, ...)
     def get_unit(self) -> int:
-        return power_of_ten(self.dto.range_digit_low_pos)
+        return power_of_ten(self.range_digit_low_pos)
 
     # Compute high digit pos, from low digit pos and digits
     # E.g. low=0, digits=6 => high=5
     def get_digit_high_pos(self) -> int:
-        return self.dto.range_digit_low_pos + self.dto.range_digits - 1
+        return self.range_digit_low_pos + self.range_digits - 1
 
     def get_maximum_value(self) -> float:
-        max_val_units = power_of_ten(self.dto.range_digits) - 1
+        max_val_units = power_of_ten(self.range_digits) - 1
         return max_val_units * self.get_unit()
 
-    # Template for the string for a particular event.
-    # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
-    def event_string_template(self) -> str:
-        return self.dto.event_string_template
-
     def event_string_template_for_id(self, event_id: str) -> str:
-        template = self.dto.event_string_template
+        template = self.event_string_template
         return template.replace("{event_id}", event_id)
 
     # Normalize value into digits, e.g. 85652 -> [0,8,5,6,5]  (5 digits, unit 10.0)
@@ -80,7 +73,7 @@ class EventDescription:
         normalized = round((value - min_val) / unit)
         # convert to digits
         normalized_str = str(normalized)
-        n = self.dto.range_digits
+        n = self.range_digits
         while len(normalized_str) < n:
             normalized_str = '0' + normalized_str
         res = []
@@ -91,7 +84,7 @@ class EventDescription:
     # Convert from digits to actual value, e.g. e.g. [0,8,5,6,5] -> 85650 (5 digits, unit 10.0)
     def digits_to_value(self, digits: list[int]) -> float:
         v = 0
-        n = self.dto.range_digits
+        n = self.range_digits
         for i in range(n):
             v = 10 * v + digits[i]
         value = v * self.get_unit() + self.get_minimum_value()
@@ -99,19 +92,15 @@ class EventDescription:
 
     def to_info(self):
         return {
-            "definition": self.dto.definition,
+            "definition": self.definition,
             "event_type": self.event_type,
-            "range_digits": self.dto.range_digits,
-            "range_digit_low_pos": self.dto.range_digit_low_pos,
+            "range_digits": self.range_digits,
+            "range_digit_low_pos": self.range_digit_low_pos,
             "range_digit_high_pos": self.get_digit_high_pos(),
             "range_unit": self.get_unit(),
             "range_min_value": self.get_minimum_value(),
             "range_max_value": self.get_maximum_value(),
         }
-
-    dto: EventDescriptionDto
-    # Event type: supported values: 'numeric'
-    event_type: str = "numeric"
 
 
 class EventClass:
@@ -119,11 +108,20 @@ class EventClass:
 
     def __init__(self, dto: EventClassDto):
         self.dto = dto
-        self.desc = EventDescription(dto.description)
+        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
 
     def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        description_obj = EventDescription.new(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
-        dto = EventClassDto(id=id, description=description_obj.dto, repeat_first_time=repeat_first_time, repeat_period=repeat_period, repeat_last_time=repeat_last_time)
+        descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+        dto = EventClassDto(
+            id=id,
+            definition=descirption.definition,
+            digits=descirption.range_digits,
+            digit_low_pos=descirption.range_digit_low_pos,
+            event_string_template=descirption.event_string_template,
+            repeat_first_time=repeat_first_time,
+            repeat_period=repeat_period,
+            repeat_last_time=repeat_last_time
+        )
         return EventClass(dto)
 
     def to_info(self):
@@ -196,7 +194,7 @@ class Outcome:
 
         digit_values = event_desc.value_to_digits(float(outcome_value))
         # the number of digits, nonces, signatures
-        n = event_desc.dto.range_digits
+        n = event_desc.range_digits
         # check that digit_values[], nonces.n[] have enough elements
         if len(digit_values) < n:
             raise Exception(f"Not enough digit_values, {digit_values} {n}")
