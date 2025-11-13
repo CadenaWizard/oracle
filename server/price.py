@@ -20,7 +20,7 @@ class PriceSource:
 
     # Return current price (info).
     # Supplied time is only a hint (used in case of dummy)
-    def get_price_info(self, symbol: str, preferred_time: int):
+    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
         symbol = symbol.upper()
         price_infos = []
 
