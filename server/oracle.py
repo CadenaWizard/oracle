@@ -410,7 +410,7 @@ class Oracle:
             "public_key": self.public_key
         }
 
-    def get_oracle_status_time(self, current_time: float):
+    def _get_oracle_status_time(self, current_time: float):
         future_count = self.db.events_count_future(current_time)
         return {
             "future_event_count": future_count,
@@ -420,7 +420,7 @@ class Oracle:
 
     def get_oracle_status(self):
         now = time.time()
-        return self.get_oracle_status_time(now)
+        return self._get_oracle_status_time(now)
 
     def get_sample_instance(pubkey):
         o = Oracle(pubkey)
@@ -513,14 +513,12 @@ class Oracle:
         return self.db.events_get_ids_filter(start_time, end_time, definition, 5000)
 
     # Get the next instance of an event class, after the given time
-    def get_next_event(self, definition: str = None, period: int = 60) -> dict:
-        period_cap = max(period, 60)
+    def _get_next_event_with_time(self, definition: str, abs_time: float) -> dict:
         # Compute the next event, try to find that
         event_class = self.get_event_class(definition)
         if not event_class:
             return {}
 
-        abs_time = math.floor(time.time()) + period_cap
         next_event_id = event_class.next_event_id(abs_time)
         # print("next_event_id", next_event_id)
         if not next_event_id:
@@ -529,8 +527,14 @@ class Oracle:
         event = self.db.events_get_by_id(next_event_id)
         if not event:
             return {}
-        assert(event.time >= abs_time)
+        assert(event.dto.time >= abs_time)
         return self.get_event_info(event)
+
+    # Get the next instance of an event class, after the given time
+    def get_next_event(self, definition: str, period: int = 60) -> dict:
+        period_cap = max(period, 60)
+        abs_time = math.floor(time.time()) + period_cap
+        return self._get_next_event_with_time(definition, abs_time)
 
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price

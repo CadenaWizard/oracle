@@ -39,7 +39,7 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(o.db.event_classes_len(), 2)
         self.assertEqual(o.db.events_len(), 2 * 38)
         # Status, current time is variable
-        status = o.get_oracle_status_time(self.now)
+        status = o._get_oracle_status_time(self.now)
         status['current_time_utc'] = 123
         self.assertEqual(status, {
             'current_time_utc': 123,
@@ -97,8 +97,6 @@ class OracleTestCase(unittest.TestCase):
             'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
             'has_outcome': False,
         })
-
-
 
     def test_filter(self):
         o = Oracle(self.public_key)
@@ -168,7 +166,10 @@ class OracleTestCase(unittest.TestCase):
         o.load_event_classes(self.event_classes)
         o.print()
 
-        event_id = 'btceur1762970400'
+        next_event = o._get_next_event_with_time('btceur', self.now + 86400)
+        self.assertEqual(next_event['event_id'], 'btceur1763078400')
+
+        event_id = next_event['event_id']
         e1 = o.get_event_by_id(event_id)
         self.assertTrue(e1 != None)
         self.assertEqual(e1['has_outcome'], False)
