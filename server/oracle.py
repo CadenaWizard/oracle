@@ -241,7 +241,7 @@ class SimulatedDb:
     # Holds  nonces, key is event ID
     _nonces: dict[str, list[Nonce]] = {}
     # Holds all the events, past and future. Key is the ID
-    _events: dict[str, Event] = {}
+    _events: dict[str, EventDto] = {}
     # Holds digit outcomes, key is event ID
     _digitoutcomes: dict[str, list[DigitOutcome]] = {}
     # Holds outcomes, key is event ID
@@ -253,6 +253,9 @@ class SimulatedDb:
         self._events = {}
         self._digitoutcomes = {}
         self._outcomes = {}
+
+    def print_stats(self):
+        print(f"DB stats: evcl: {len(self._event_classes)}  nonce: {len(self._nonces)}  ev: {len(self._events)}  diou: {len(self._digitoutcomes)}  outcome: {len(self._outcomes)}")
 
     def event_classes_insert(self, ec: EventClassDto):
         self._event_classes.append(ec)
@@ -285,16 +288,16 @@ class SimulatedDb:
             return []
         return self._nonces[event_id]
 
-    def events_append(self, more_events: list[Event]):
+    def events_append(self, more_events: dict[str, EventDto]):
         self._events = {**self._events, **more_events}
 
     def events_len(self) -> int:
         return len(self._events)
 
-    def events_get_by_id(self, event_id: str) -> Event | None:
-        if event_id in self._events:
-            return self._events[event_id]
-        return None
+    def events_get_by_id(self, event_id: str) -> EventDto | None:
+        if event_id not in self._events:
+            return None
+        return self._events[event_id]
 
     # Get the time of the earliest event without outcome
     def events_get_earliest_time_without_outcome(self) -> int:
@@ -302,8 +305,8 @@ class SimulatedDb:
         for eid, e in self._events.items():
             if self.outcomes_exists(eid):
                 continue
-            if e.dto.time < t:
-                t = e.dto.time
+            if e.time < t:
+                t = e.time
         return t
 
     # Get (the ID of) events in the past with no outcome
@@ -313,47 +316,30 @@ class SimulatedDb:
         for eid, e in self._events.items():
             if self.outcomes_exists(eid):
                 continue
-            if e.dto.time > now:
+            if e.time > now:
                 continue
-            pe.append(e.dto.event_id)
+            pe.append(e.event_id)
         return pe
 
     """Count the number of future events"""
     def events_count_future(self, current_time: int):
         c = 0
         for _eid, e in self._events.items():
-            if e.dto.time > current_time:
+            if e.time > current_time:
                 c += 1
         return c
 
-    def events_get_filter(self, start_time: int, end_time: int, definition: str | None, limit: int) -> list[Event]:
-        r = []
-        for eid, e in self._events.items():
-            if start_time != 0:
-                if e.dto.time < start_time:
-                    continue
-            if end_time != 0:
-                if e.dto.time > end_time:
-                    continue
-            if definition is not None:
-                if e.desc.definition != definition:
-                    continue
-            r.append(e)
-            if len(r) >= limit:
-                break
-        return r
-
     def events_get_ids_filter(self, start_time: int, end_time: int, definition: str | None, limit: int) -> list[str]:
         r = []
-        for eid, e in self._events.items():
+        for eid, e in self._events.items   ():
             if start_time != 0:
-                if e.dto.time < start_time:
+                if e.time < start_time:
                     continue
             if end_time != 0:
-                if e.dto.time > end_time:
+                if e.time > end_time:
                     continue
             if definition is not None:
-                if e.desc.definition != definition:
+                if e.definition != definition:
                     continue
             r.append(eid)
             if len(r) >= limit:
@@ -398,17 +384,17 @@ class Oracle:
 
     def add_event_class(self, ec):
         print("Generating events.for event class '", ec.dto.id, "' ...")
-        events = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
+        event_dtos = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
         self.db.event_classes_insert(ec.dto)
         # Merge
-        self.db.events_append(events)
-        print(f"Loaded event class '{ec.dto.id}', generated {len(events)} events, total {self.db.events_len()}")
+        self.db.events_append(event_dtos)
+        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, total {self.db.events_len()}")
 
     def print(self):
         now = time.time()
         print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
-    def generate_events_from_class(self, ec: EventClass, signer_public_key: str):
+    def generate_events_from_class(self, ec: EventClass, signer_public_key: str) -> list[EventDto]:
         e = {}
         t = ec.dto.repeat_first_time
         cnt = 0
@@ -417,7 +403,7 @@ class Oracle:
             ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
             eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
-            e[eid] = ev
+            e[eid] = ev.dto
             t += ec.dto.repeat_period
             cnt += 1
         return e
@@ -475,7 +461,20 @@ class Oracle:
         self.db.nonces_insert(nonces)
         return self.db.nonces_get(eid)
 
-    def _get_event_info_with_outcome(self, event: Event, outcome: Outcome | None):
+    def get_outcome(self, event_id: str) -> Outcome | None:
+        # get outcome (if any)
+        outcome_dto = self.db.outcomes_get(event_id)
+        if outcome_dto is None:
+            return None
+        digits = self.db.digitoutcomes_get(event_id)
+        return Outcome(outcome_dto, digits)
+
+    def _get_event_info_with_outcome(self, event: Event, override_outcome: Outcome | None):
+        if override_outcome is None:
+            outcome = self.get_outcome(event.dto.event_id)
+        else:
+            outcome = override_outcome
+
         has_outcome = (outcome is not None)
         nonces = self.get_nonces(event)
         info = {
@@ -504,20 +503,23 @@ class Oracle:
         return info
 
     def get_event_info(self, event: Event):
-        eid = event.dto.event_id
-        outcome_dto = self.db.outcomes_get(eid)
-        if outcome_dto is None:
-            outcome = None
-        else:
-            digits = self.db.digitoutcomes_get(eid)
-            outcome = Outcome(outcome_dto, digits)
-        return self._get_event_info_with_outcome(event, outcome)
+        return self._get_event_info_with_outcome(event, None)
+
+    def get_event_obj_by_id(self, event_id: str) -> Event | None:
+        e_dto = self.db.events_get_by_id(event_id)
+        if e_dto is None:
+            return None
+        event_class = self.db.event_classes_get_by_def(e_dto.definition)
+        if event_class is None:
+            # Could not get event class!
+            return None
+        return Event(e_dto, event_class)
 
     def get_event_by_id(self, event_id: str):
-        e = self.db.events_get_by_id(event_id)
-        if not e:
+        e = self.get_event_obj_by_id(event_id)
+        if e is None:
             return {}
-        return self.get_event_info(e)
+        return self._get_event_info_with_outcome(e, None)
 
     # Note: Max count is capped at the hard limit of 100 events, to prevent large responses
     def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100) -> list[dict]:
@@ -525,8 +527,8 @@ class Oracle:
             definition = definition.upper()
         max_count_hard_limit = 100
         max_count = min(max_count, max_count_hard_limit)
-        events = self.db.events_get_filter(start_time, end_time, definition, max_count)
-        event_infos = list(map(lambda e: self.get_event_info(e), events))
+        event_ids = self.db.events_get_ids_filter(start_time, end_time, definition, max_count)
+        event_infos = list(map(lambda eid: self.get_event_by_id(eid), event_ids))
         return event_infos
 
     # Note: a hard limit of 5000 limit is applied, to prevent very large responses
@@ -547,7 +549,7 @@ class Oracle:
         if not next_event_id:
             return {}
 
-        event = self.db.events_get_by_id(next_event_id)
+        event = self.get_event_obj_by_id(next_event_id)
         if not event:
             return {}
         assert(event.dto.time >= abs_time)
@@ -562,13 +564,15 @@ class Oracle:
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price
 
-    def create_past_outcomes_time(self, current_time: float) -> int:
+    def _create_past_outcomes_time(self, current_time: float) -> int:
         cnt = 0
         # past events without outcome
         pe = self.db.events_get_past_no_outcome(current_time)
         print(f"Found {len(pe)} events in the past without outcome")
         for eid in pe:
-            e = self.db.events_get_by_id(eid)
+            e = self.get_event_obj_by_id(eid)
+            if e is None:
+                continue
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
@@ -581,15 +585,16 @@ class Oracle:
             cnt += 1
         if cnt > 0:
             print(f"Generated outcomes for {cnt} past events")
+            self.db.print_stats()
         return cnt
 
     def create_past_outcomes(self) -> int:
         now = time.time()
         print("Checking for past outcome generation ...", round(now))
-        return self.create_past_outcomes_time(now)
+        return self._create_past_outcomes_time(now)
 
     def dummy_outcome_for_event(self, event_id):
-        e = self.db.events_get_by_id(event_id)
+        e = self.get_event_obj_by_id(event_id)
         if e == None:
             return {}
         if self.db.outcomes_exists(event_id):

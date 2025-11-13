@@ -154,7 +154,7 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(e1['has_outcome'], False)
 
         # Generate outcomes
-        cnt = o.create_past_outcomes_time(self.now)
+        cnt = o._create_past_outcomes_time(self.now)
         self.assertTrue(cnt >= 10)
 
         # get the event, should have outcome
