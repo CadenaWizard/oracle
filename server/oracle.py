@@ -2,64 +2,40 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from price import PriceSource
+from db import EventStorage
 import dlcplazacryptlib
+from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
+from price import PriceSource
+from util import power_of_ten
 
 from datetime import datetime, UTC
-import copy
 import math
 import random
-import sys
 import _thread
 import time
 
-HEX_ALPHABET = "0123456789abcdef"
+
+EVENT_STRING_TEMPLATE_DEFAULT = "Outcome:{event_id}:{digit_index}:{digit_outcome}"
+
 
 # Singleton app instance, created on demand, in _get_singleton_instance()
 _singleton_app_instance = None
 
 _outcome_loop_thread_started = False
 
-class HexValue:
-    def get_default():
-        return "0102030405060708091011121314151617181920212323242526272829303132"
-
-    def get_random():
-        return get_random_len(32)
-
-    def get_default_len(l: int):
-        s = ""
-        cnt = 0
-        while len(s) < l:
-            s += str(cnt)
-            cnt = (cnt +1) % 10
-        return s
-
-    def get_random_len(l: int):
-        s = ""
-        while len(s) < l:
-            s += HEX_ALPHABET[random.randrange(16)]
-        return s
-
-# Get power of 10 (global helper)
-def power_of_ten(exponent: int) -> int:
-    # Quick lookup
-    if exponent <= 6:
-        return [1, 10, 100, 1000, 10000, 100000, 1000000][exponent]
-    # General, multiplication
-    pow = 1
-    for _i in range(exponent):
-        pow *= 10
-    return pow
 
 class EventDescription:
     """Common attributes of an event"""
 
     def __init__(self, definition: str, digits: int, digit_low_pos: int):
         self.definition = definition.upper()
-        self.event_type = "numeric"
         self.range_digits = digits
         self.range_digit_low_pos = digit_low_pos
+        # Template for the string for a particular event.
+        # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
+        self.event_string_template = EVENT_STRING_TEMPLATE_DEFAULT
+        # Event type: supported values: 'numeric'
+        self.event_type = "numeric"
 
     def get_minimum_value(self) -> float:
         return 0
@@ -74,16 +50,11 @@ class EventDescription:
         return self.range_digit_low_pos + self.range_digits - 1
 
     def get_maximum_value(self) -> float:
-        high_digit = self.get_digit_high_pos()
-        return power_of_ten(high_digit + 1) - 1
+        max_val_units = power_of_ten(self.range_digits) - 1
+        return max_val_units * self.get_unit()
 
-    # Template for the string for a particular event.
-    # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
-    def event_string_template() -> str:
-        return "Outcome:{event_id}:{digit_index}:{digit_outcome}"
-
-    def event_string_template_for_id(event_id: str) -> str:
-        template = EventDescription.event_string_template()
+    def event_string_template_for_id(self, event_id: str) -> str:
+        template = self.event_string_template
         return template.replace("{event_id}", event_id)
 
     # Normalize value into digits, e.g. 85652 -> [0,8,5,6,5]  (5 digits, unit 10.0)
@@ -130,46 +101,52 @@ class EventDescription:
             "range_max_value": self.get_maximum_value(),
         }
 
-    # The formal description of event, e.g. for market rate events the symbol
-    definition: str = "BTCUSD"
-    # Event type: supported values: 'numeric'
-    event_type: str = "numeric"
-    # Number of digits used to represent the values in range
-    range_digits: int = 5
-    # The position of the low digit, 0 for rightmost unit '1', 1 for 10, 2, for 100.
-    range_digit_low_pos: int = 0
 
 class EventClass:
     """An event class, typically for periodically repeating similar events."""
 
-    def __init__(self, id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        self.event_class_id = id
-        self.desc = EventDescription(definition, digits, digit_low_pos)
-        self.repeat_first_time = repeat_first_time
-        self.repeat_period = repeat_period
-        self.repeat_last_time = repeat_last_time
+    def __init__(self, dto: EventClassDto):
+        self.dto = dto
+        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
+
+    def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
+        descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+        dto = EventClassDto(
+            id=id,
+            definition=descirption.definition,
+            digits=descirption.range_digits,
+            digit_low_pos=descirption.range_digit_low_pos,
+            event_string_template=descirption.event_string_template,
+            repeat_first_time=repeat_first_time,
+            repeat_period=repeat_period,
+            repeat_last_time=repeat_last_time
+        )
+        return EventClass(dto)
 
     def to_info(self):
         return {
-            "class_id": self.event_class_id,
+            "class_id": self.dto.id,
             "desc": self.desc.to_info(),
-            "repeat_first_time": self.repeat_first_time,
-            "repeat_period": self.repeat_period,
-            "repeat_last_time": self.repeat_last_time,
+            "repeat_first_time": self.dto.repeat_first_time,
+            "repeat_period": self.dto.repeat_period,
+            "repeat_last_time": self.dto.repeat_last_time,
         }
 
     # Get the next future event time following the given time, 0 on error
     def next_event_time(self, abs_time):
         # print("time", self.repeat_first_time, self.repeat_last_time, self.repeat_period, time)
-        if abs_time > self.repeat_last_time:
+        if abs_time > self.dto.repeat_last_time:
             # Out of range
             return 0
-        time_adj = max(self.repeat_first_time, abs_time)
-        period_count = int(math.floor((int(time_adj) - 1 - self.repeat_first_time) / self.repeat_period)) + 1
-        next_time = self.repeat_first_time + period_count * self.repeat_period
+        time_adj = max(self.dto.repeat_first_time, abs_time)
+        period_count = int(math.floor((int(time_adj) - 1 - self.dto.repeat_first_time) / self.dto.repeat_period)) + 1
+        next_time = self.dto.repeat_first_time + period_count * self.dto.repeat_period
+        if next_time > self.dto.repeat_last_time:
+            # Would be too late, out of range
+            return 0
         assert(next_time >= abs_time)
-        assert(next_time >= self.repeat_first_time)
-        assert(next_time <= self.repeat_last_time)
+        assert(next_time >= self.dto.repeat_first_time)
+        assert(next_time <= self.dto.repeat_last_time)
         return next_time
 
     # Get the ID of the next future event following the given time, 0 on error
@@ -180,185 +157,88 @@ class EventClass:
         next_event_id = Event.event_id_from_class_and_time(self, next_event_time)
         return next_event_id
 
-    event_class_id: str = ""
+    dto: EventClassDto
     desc: EventDescription
-    # The time of the first event (unix time)
-    repeat_first_time: int = 1704067200
-    # The repetition period, in secs (e.g. 86400 for one day)
-    repeat_period: int = 86400
-    # The time of the firstlast event (unix time)
-    repeat_last_time: int = 2019682800
 
     def get_sample_instance():
-        return EventClass("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
-
-# Outcome for one digit: index, value, nonce, sig
-class DigitOutcome:
-    # 0-based.left-to-right index of the digit
-    index: int
-    # the outcome of the digit
-    value: int
-    nonce: str
-    signature: str
-    # the exact string message for signing
-    msg_str: str
-
-    def __init__(self, index, value, nonce, signature, msg_str):
-        self.index = index
-        self.value = value
-        self.nonce = nonce
-        self.signature = signature
-        self.msg_str = msg_str
-
-    def to_info(self):
-        return {
-            "index": self.index,
-            "value": self.value,
-            "nonce": self.nonce,
-            "signature": self.signature,
-            "msg_str": self.msg_str,
-        }
+        return EventClass.new("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
 
 
-# Holds a set of nonces for an event (one per digit); public and secret nonces
 class Nonces:
     # Generate nonces. Note: this is a bit slow due to key operations
-    def __init__(self, event_id, range_digits):
-        self.nonces_pub = []
-        self.nonces_sec = []
+    def generate(event_id: str, range_digits: int) -> list[Nonce]:
+        nonces = []
         for i in range(range_digits):
             # TODO use a non-deterministic, true random nonce here
             newnonce = dlcplazacryptlib.create_deterministic_nonce(event_id, i)
-            self.nonces_sec.append(newnonce[0])
-            self.nonces_pub.append(newnonce[1])
+            nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=newnonce[1], nonce_sec=newnonce[0])
+            nonces.append(nonce)
         print(".", end="")
-
-    # A nonce for each digit
-    # Nonces to be used in the attestation signature
-    # Public key, hex string
-    nonces_pub: list[str] = []
-    # The secret part of the nonces
-    nonces_sec: list[str] = []
+        return nonces
 
 
 class Outcome:
-    # Create the outcome. May throw
-    def __init__(self, outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: Nonces):
-        digit_values = event_desc.value_to_digits(outcome_value)
-        self.value = event_desc.digits_to_value(digit_values)
-        self.created_time = created_time
+    def __init__(self, dto: OutcomeDto, digit_outcomes: list[DigitOutcome]):
+        self.dto = dto
+        self.digits = digit_outcomes
 
+    # Create the outcome. May throw
+    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: list[Nonce]):
+        outcome_dto = OutcomeDto(event_id=event_id, value=outcome_value, created_time=created_time)
+
+        digit_values = event_desc.value_to_digits(float(outcome_value))
         # the number of digits, nonces, signatures
         n = event_desc.range_digits
-        # check that digit_values[], nonces_sec[], nonces_pub[] have enough elements
+        # check that digit_values[], nonces.n[] have enough elements
         if len(digit_values) < n:
             raise Exception(f"Not enough digit_values, {digit_values} {n}")
-        if (len(nonces.nonces_pub) < n) | (len(nonces.nonces_sec) < n):
-            raise Exception(f"Not enough nonces, {len(nonces.nonces_pub)} {len(nonces.nonces_sec)} {n}")
+        if len(nonces) < n:
+            raise Exception(f"Not enough nonces, {len(nonces)} {n}")
 
-        self.digits = []
+        digits = []
         for i in range(n):
-            msg = Outcome.string_for_event(event_id, i, digit_values[i])
-            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces.nonces_sec[i], 0)
-            digit_outcome = DigitOutcome(i, digit_values[i], nonces.nonces_pub[i], sig, msg)
-            self.digits.append(digit_outcome)
+            msg = Outcome.string_for_event(event_desc, event_id, i, digit_values[i])
+            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces[i].nonce_sec, 0)
+            digit_outcome = DigitOutcome(event_id, i, digit_values[i], nonces[i].nonce_pub, sig, msg)
+            digits.append(digit_outcome)
+        return Outcome(dto=outcome_dto, digit_outcomes=digits)
 
-    def string_for_event(event_id: str, digit_index: int, digit_outcome: int) -> str:
-        s = EventDescription.event_string_template_for_id(event_id)
+    def string_for_event(event_desc: EventDescription, event_id: str, digit_index: int, digit_outcome: int) -> str:
+        s = event_desc.event_string_template_for_id(event_id)
         s = s.replace("{digit_index}", str(digit_index))
         s = s.replace("{digit_outcome}", str(digit_outcome))
         return s
-
-    value: float = ""
-    digits: list[DigitOutcome] = []
-    # Time when the outcome was processed, unix time
-    created_time: float = 0
 
 
 class Event:
     """An individual event"""
 
-    def __init__(self, time, event_class=None, id=None, definition=None, digits=None, unit=None, signer_public_key: str = ""):
-        if event_class is not None:
-            # constructor with a class
-            self.event_id = Event.event_id_from_class_and_time(event_class, time)
-            self.desc = event_class.desc
-            self.event_class = event_class.event_class_id
-        else:
-            self.event_id = id
-            self.desc = EventDescription(definition, digits, unit)
-            self.event_class = ""
-        self.time = time
-        self.signer_public_key = signer_public_key
+    def __init__(self, dto: EventDto, event_class_dto: EventClassDto):
+        self.dto = dto
+        self.desc = EventClass(event_class_dto).desc
+        self.event_class = event_class_dto.id
         # set later on-demand, on first use
-        self._nonces = None  
-        self.string_template = EventDescription.event_string_template_for_id(self.event_id)
+
+    def new(time, event_class: EventClass, signer_public_key: str):
+        assert(event_class is not None)
+        event_id = Event.event_id_from_class_and_time(event_class, time)
+        string_template = event_class.desc.event_string_template_for_id(event_id)
+        event_dto = EventDto(event_id=event_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
+        return Event(event_dto, event_class.dto)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
-        return event_class.event_class_id + str(time)
+        return event_class.dto.id + str(time)
 
-    # Access nonces, Fill on-demand
-    def get_nonces(self) -> Nonces:
-        if not self._nonces:
-            self._nonces = Nonces(self.event_id, self.desc.range_digits)
-        return self._nonces
-
-    def get_event_info(self):
-        has_outcome = (self.outcome is not None)
-        nonces = self.get_nonces()
-        info = {
-            "event_id": self.event_id,
-            "time_utc": self.time,
-            "time_utc_nice": str(datetime.fromtimestamp(self.time, UTC)),
-            "definition": self.desc.definition,
-            "event_type": self.desc.event_type,
-            "range_digits": self.desc.range_digits,
-            "range_digit_low_pos": self.desc.range_digit_low_pos,
-            "range_digit_high_pos": self.desc.get_digit_high_pos(),
-            "range_unit": self.desc.get_unit(),
-            "range_min_value": self.desc.get_minimum_value(),
-            "range_max_value": self.desc.get_maximum_value(),
-            "event_class": self.event_class,
-            "signer_public_key": self.signer_public_key,
-            "string_template": self.string_template,
-            "has_outcome": has_outcome,
-            "nonces": nonces.nonces_pub,
-        }
-        if has_outcome:
-            info["outcome_value"] = self.outcome.value
-            info["outcome_time"] = self.outcome.created_time
-            info["digits"] = list(map(lambda di: di.to_info(), self.outcome.digits))
-        return info
-
-    event_id: str = ""
-    # The time of the event (unix time)
-    time: int = 1767222000
-    desc: EventDescription
-    # If it's the member of an event class
-    event_class: str = ""
-    # The signer (oracle) public key, to be used or used for signing
-    signer_public_key: str = ""
-    # A nonce for each digit, access it through get_nonces()
-    _nonces: Nonces = None
-    # The message string template for this event
-    string_template: str = ""
-    outcome: Outcome = None
 
 class Oracle:
-    public_key: str = ""
-    event_classes = []
-    # Holds all the events, past and future. Key is the ID
-    events = {}
-    price_source = PriceSource()
-
     def __init__(self, public_key):
-        self.clear()
+        self.db = EventStorage()
         self.public_key = public_key
+        self.price_source = PriceSource()
 
     def clear(self):
-        self.event_classes = []
-        self.events = {}
+        self.db.clear()
 
     def load_event_classes(self, event_classes):
         self.clear()
@@ -366,32 +246,28 @@ class Oracle:
             self.add_event_class(ec)
 
     def add_event_class(self, ec):
-        print("Generating events.for event class '", ec.event_class_id, "' ...")
-        events = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
-        self.event_classes.append(ec)
+        print("Generating events.for event class '", ec.dto.id, "' ...")
+        event_dtos = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
+        self.db.event_classes_insert(ec.dto)
         # Merge
-        self.events = {**self.events, **events}
-        print(f"Loaded event class '{ec.event_class_id}', generated {len(events)} events, total {len(self.events)}")
+        self.db.events_append(event_dtos)
+        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, total {self.db.events_len()}")
 
     def print(self):
         now = time.time()
-        print("Oracle, with",
-            self.count_future_events(now),
-            "events (",
-            len(self.events), 
-            "total), and", len(self.event_classes), "eventclasses")
+        print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
-    def generate_events_from_class(self, ec: EventClass, signer_public_key: str):
+    def generate_events_from_class(self, ec: EventClass, signer_public_key: str) -> list[EventDto]:
         e = {}
-        t = ec.repeat_first_time
+        t = ec.dto.repeat_first_time
         cnt = 0
-        while t <= ec.repeat_last_time:
+        while t <= ec.dto.repeat_last_time:
             # create event
-            ev = Event(event_class=ec, time=t, signer_public_key=signer_public_key)
-            eid = ev.event_id
+            ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
+            eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
-            e[eid] = ev
-            t += ec.repeat_period
+            e[eid] = ev.dto
+            t += ec.dto.repeat_period
             cnt += 1
         return e
 
@@ -400,14 +276,17 @@ class Oracle:
             "public_key": self.public_key
         }
 
-    def get_oracle_status(self):
-        now = time.time()
-        future_count = self.count_future_events(now)
+    def _get_oracle_status_time(self, current_time: float):
+        future_count = self.db.events_count_future(current_time)
         return {
             "future_event_count": future_count,
-            "total_event_count": len(self.events),
+            "total_event_count": self.db.events_len(),
             "current_time_utc": round(time.time(), 3),
         }
+
+    def get_oracle_status(self):
+        now = time.time()
+        return self._get_oracle_status_time(now)
 
     def get_sample_instance(pubkey):
         o = Oracle(pubkey)
@@ -415,166 +294,192 @@ class Oracle:
         start_time = 1704067200 + 17 * 30 * 86400
         end_time = start_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
-            EventClass("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
-            EventClass("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
+            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
+            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
         ])
         return o
 
     # Get event classes
     def get_event_classes(self):
-        return list(map(lambda ec: ec.to_info(), self.event_classes))
+        return list(map(lambda ec_dto: EventClass(ec_dto).to_info(), self.db.event_classes_get_all()))
 
     def get_event_class(self, definition: str) -> EventClass:
         if not definition:
             return None
         def_upper = definition.upper()
-        for ec in self.event_classes:
-            if ec.desc.definition == def_upper:
-                return ec
-        # Not found
-        return None
+        dto = self.db.event_classes_get_by_def(def_upper)
+        if dto == None:
+            return None
+        return EventClass(dto)
 
-    def get_event_by_id_intern(self, event_id: str):
-        if event_id in self.events:
-            return self.events[event_id]
-        return None
+    # Access nonces, Fill on-demand
+    def get_nonces(self, event: Event) -> list[Nonce]:
+        eid = event.dto.event_id
+        nonces = self.db.nonces_get(eid)
+        if len(nonces) > 0:
+            # There are nonces
+            return nonces
+        # No nonces, generate now
+        nonces = Nonces.generate(eid, event.desc.range_digits)
+        self.db.nonces_insert(nonces)
+        return self.db.nonces_get(eid)
+
+    def get_outcome(self, event_id: str) -> Outcome | None:
+        # get outcome (if any)
+        outcome_dto = self.db.outcomes_get(event_id)
+        if outcome_dto is None:
+            return None
+        digits = self.db.digitoutcomes_get(event_id)
+        return Outcome(outcome_dto, digits)
+
+    def _get_event_info_with_outcome(self, event: Event, override_outcome: Outcome | None):
+        if override_outcome is None:
+            outcome = self.get_outcome(event.dto.event_id)
+        else:
+            outcome = override_outcome
+
+        has_outcome = (outcome is not None)
+        nonces = self.get_nonces(event)
+        info = {
+            "event_id": event.dto.event_id,
+            "time_utc": event.dto.time,
+            "time_utc_nice": str(datetime.fromtimestamp(event.dto.time, UTC)),
+            "definition": event.desc.definition,
+            "event_type": event.desc.event_type,
+            "range_digits": event.desc.range_digits,
+            "range_digit_low_pos": event.desc.range_digit_low_pos,
+            "range_digit_high_pos": event.desc.get_digit_high_pos(),
+            "range_unit": event.desc.get_unit(),
+            "range_min_value": event.desc.get_minimum_value(),
+            "range_max_value": event.desc.get_maximum_value(),
+            "event_class": event.event_class,
+            "signer_public_key": event.dto.signer_public_key,
+            "string_template": event.dto.string_template,
+            "has_outcome": has_outcome,
+            # public nonces
+            "nonces": list(map(lambda n: n.nonce_pub, nonces)),
+        }
+        if has_outcome:
+            info["outcome_value"] = outcome.dto.value
+            info["outcome_time"] = outcome.dto.created_time
+            info["digits"] = list(map(lambda di: di.to_info(), outcome.digits))
+        return info
+
+    def get_event_info(self, event: Event):
+        return self._get_event_info_with_outcome(event, None)
+
+    def get_event_obj_by_id(self, event_id: str) -> Event | None:
+        e_dto = self.db.events_get_by_id(event_id)
+        if e_dto is None:
+            return None
+        event_class = self.db.event_classes_get_by_def(e_dto.definition)
+        if event_class is None:
+            # Could not get event class!
+            return None
+        return Event(e_dto, event_class)
 
     def get_event_by_id(self, event_id: str):
-        e = self.get_event_by_id_intern(event_id)
-        if not e:
+        e = self.get_event_obj_by_id(event_id)
+        if e is None:
             return {}
-        return e.get_event_info()
+        return self._get_event_info_with_outcome(e, None)
 
-    # Note: Max count is capped at the hard limit of 100 events, to prevent laerge responses
-    def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100):
+    # Note: Max count is capped at the hard limit of 100 events, to prevent large responses
+    def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100) -> list[dict]:
         if definition is not None:
             definition = definition.upper()
-        r = []
         max_count_hard_limit = 100
         max_count = min(max_count, max_count_hard_limit)
-        for _eid, e in self.events.items():
-            if start_time != 0:
-                if e.time < start_time:
-                    continue
-            if end_time != 0:
-                if e.time > end_time:
-                    continue
-            if definition is not None:
-                if e.desc.definition != definition:
-                    continue
-            r.append(e.get_event_info())
-            if len(r) >= max_count:
-                break
-        return r
+        event_ids = self.db.events_get_ids_filter(start_time, end_time, definition, max_count)
+        event_infos = list(map(lambda eid: self.get_event_by_id(eid), event_ids))
+        return event_infos
 
     # Note: a hard limit of 5000 limit is applied, to prevent very large responses
-    def get_event_ids_filter(self, start_time: int = 0, end_time = 0, definition: str = None):
+    def get_event_ids_filter(self, start_time: int = 0, end_time = 0, definition: str = None) -> list[str]:
         if definition is not None:
             definition = definition.upper()
-        r = []
-        max_count_hard_limit = 5000
-        for eid, e in self.events.items():
-            if start_time != 0:
-                if e.time < start_time:
-                    continue
-            if end_time != 0:
-                if e.time > end_time:
-                    continue
-            if definition is not None:
-                if e.desc.definition != definition:
-                    continue
-            r.append(eid)
-            if len(r) >= max_count_hard_limit:
-                break
-        return r
+        return self.db.events_get_ids_filter(start_time, end_time, definition, 5000)
 
     # Get the next instance of an event class, after the given time
-    def get_next_event(self, definition: str = None, period: int = 60):
-        period_cap = max(period, 60)
+    def _get_next_event_with_time(self, definition: str, abs_time: float) -> dict:
         # Compute the next event, try to find that
         event_class = self.get_event_class(definition)
         if not event_class:
             return {}
 
-        abs_time = math.floor(time.time()) + period_cap
         next_event_id = event_class.next_event_id(abs_time)
         # print("next_event_id", next_event_id)
         if not next_event_id:
             return {}
 
-        event = self.get_event_by_id_intern(next_event_id)
+        event = self.get_event_obj_by_id(next_event_id)
         if not event:
             return {}
-        assert(event.time >= abs_time)
-        return event.get_event_info()
+        assert(event.dto.time >= abs_time)
+        return self.get_event_info(event)
 
-    """Count the number of future events"""
-    def count_future_events(self, current_time: int):
-        c = 0
-        for _eid, e in self.events.items():
-            if e.time > current_time:
-                c += 1
-        return c
+    # Get the next instance of an event class, after the given time
+    def get_next_event(self, definition: str, period: int = 60) -> dict:
+        period_cap = max(period, 60)
+        abs_time = math.floor(time.time()) + period_cap
+        return self._get_next_event_with_time(definition, abs_time)
 
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price
 
-    def create_past_outcomes(self):
-        now = time.time()
-        print("Checking for past outcome generation ...", round(now))
+    def _create_past_outcomes_time(self, current_time: float) -> int:
         cnt = 0
-        for eid, e in self.events.items():
-            if e.outcome is not None:
+        # past events without outcome
+        pe = self.db.events_get_past_no_outcome(current_time)
+        print(f"Found {len(pe)} events in the past without outcome")
+        for eid in pe:
+            e = self.get_event_obj_by_id(eid)
+            if e is None:
                 continue
-            if e.time > now:
-                continue
-            # has no outcome yet and is in the past
             symbol = e.desc.definition
-            value = self.get_price(symbol, now)
+            value = self.get_price(symbol, current_time)
             try:
-                outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
-                self.events[eid].outcome = outcome
+                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, self.get_nonces(e))
+                self.db.digitoutcomes_insert(eid, outcome.digits)
+                self.db.outcomes_insert(outcome.dto)
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
                 # continue
             cnt += 1
         if cnt > 0:
-            print("Generated outcomes for", cnt, "past events")
+            print(f"Generated outcomes for {cnt} past events")
+            self.db.print_stats()
+        return cnt
 
-    # Get the time of the earliest event without outcome
-    def get_earliest_event_time_without_outcome(self) -> int:
-        t = sys.maxsize - 10
-        for _eid, e in self.events.items():
-            if e.outcome is not None:
-                continue
-            if e.time < t:
-                t = e.time
-        return t
+    def create_past_outcomes(self) -> int:
+        now = time.time()
+        print("Checking for past outcome generation ...", round(now))
+        return self._create_past_outcomes_time(now)
 
     def dummy_outcome_for_event(self, event_id):
-        if event_id in self.events:
-            e = self.events[event_id]
-            # make a copy, we don't want to store the premature dummy outcome
-            ecopy = copy.deepcopy(e)
-            if e.outcome is None:
-                # has no outcome yet
-                symbol = e.desc.definition
-                value = self.get_price(symbol, e.time)
-                now = time.time()
-                try:
-                    ecopy.outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
-                except Exception as ex:
-                    print(f"Exception while generating outcome, {ex}")
-                    return {}
-            return ecopy.get_event_info()
-        return {}
+        e = self.get_event_obj_by_id(event_id)
+        if e == None:
+            return {}
+        if self.db.outcomes_exists(event_id):
+            # already has outcome
+            return self.get_event_info(e)
+        # has no outcome yet
+        symbol = e.desc.definition
+        value = self.get_price(symbol, e.dto.time)
+        now = time.time()
+        try:
+            outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
+            return self._get_event_info_with_outcome(e, outcome)
+        except Exception as ex:
+            print(f"Exception while generating dummy outcome, {ex}")
+            return {}
 
     def check_outcome_loop(self):
         print("check_outcome_loop started", round(time.time()))
         time.sleep(10)
         while True:
             self.create_past_outcomes()
-            earliest = self.get_earliest_event_time_without_outcome()
+            earliest = self.db.events_get_earliest_time_without_outcome()
             now = time.time()
             # wait a bit for the next event, but limit wait to min/max values
             towait_unbound = (earliest - now) / 2 - 1
