@@ -219,7 +219,6 @@ class Event:
         self.desc = EventClass(event_class_dto).desc
         self.event_class = event_class_dto.id
         # set later on-demand, on first use
-        self.outcome = None
 
     def new(time, event_class: EventClass, signer_public_key: str):
         assert(event_class is not None)
@@ -235,14 +234,16 @@ class Event:
 
 # TODO:
 # store in DB
-# Store digitoutcomes, outcomes, publickeys separately
+# Store digitoutcomes, publickeys separately
 # No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
 class SimulatedDb:
     _event_classes: list[EventClassDto] = []
-    # Holds all the nonces, key is event ID
+    # Holds  nonces, key is event ID
     _nonces: dict[str, list[Nonce]] = {}
     # Holds all the events, past and future. Key is the ID
     _events: dict[str, Event] = {}
+    # Holds outcomes, key is event ID
+    _outcomes: dict[str, Outcome] = {}
 
     def event_classes_insert(self, ec: EventClassDto):
         self._event_classes.append(ec)
@@ -289,22 +290,19 @@ class SimulatedDb:
     # Get the time of the earliest event without outcome
     def events_get_earliest_time_without_outcome(self) -> int:
         t = sys.maxsize - 10
-        for _eid, e in self._events.items():
-            if e.outcome is not None:
+        for eid, e in self._events.items():
+            if self.outcomes_get(eid) is not None:
                 continue
             if e.dto.time < t:
                 t = e.dto.time
         return t
 
-    def events_set_outcome(self, event_id, outcome):
-        self._events[event_id].outcome = outcome
-
     # Get (the ID of) events in the past with no outcome
     def events_get_past_no_outcome(self, now) -> list[str]:
         # past events without outcome
         pe = []
-        for _eid, e in self._events.items():
-            if e.outcome is not None:
+        for eid, e in self._events.items():
+            if self.outcomes_get(eid) is not None:
                 continue
             if e.dto.time > now:
                 continue
@@ -352,6 +350,15 @@ class SimulatedDb:
             if len(r) >= limit:
                 break
         return r
+
+    def outcomes_get(self, event_id: str) -> Outcome | None:
+        if event_id in self._outcomes:
+            return self._outcomes[event_id]
+        return None
+    
+    def outcomes_insert(self, o: Outcome):
+        eid = o.dto.event_id
+        self._outcomes[eid] = o
 
     def clear(self):
         self._event_classes = []
@@ -451,8 +458,8 @@ class Oracle:
         self.db.nonces_insert(nonces)
         return self.db.nonces_get(eid)
 
-    def get_event_info(self, event: Event):
-        has_outcome = (event.outcome is not None)
+    def _get_event_info_with_outcome(self, event: Event, outcome: Outcome | None):
+        has_outcome = (outcome is not None)
         nonces = self.get_nonces(event)
         info = {
             "event_id": event.dto.event_id,
@@ -474,10 +481,14 @@ class Oracle:
             "nonces": list(map(lambda n: n.nonce_pub, nonces)),
         }
         if has_outcome:
-            info["outcome_value"] = event.outcome.dto.value
-            info["outcome_time"] = event.outcome.dto.created_time
-            info["digits"] = list(map(lambda di: di.to_info(), event.outcome.digits))
+            info["outcome_value"] = outcome.dto.value
+            info["outcome_time"] = outcome.dto.created_time
+            info["digits"] = list(map(lambda di: di.to_info(), outcome.digits))
         return info
+
+    def get_event_info(self, event: Event):
+        outcome = self.db.outcomes_get(event.dto.event_id)
+        return self._get_event_info_with_outcome(event, outcome)
 
     def get_event_by_id(self, event_id: str):
         e = self.db.events_get_by_id(event_id)
@@ -535,7 +546,7 @@ class Oracle:
             value = self.get_price(symbol, current_time)
             try:
                 outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, self.get_nonces(e))
-                self.db.events_set_outcome(e.dto.event_id, outcome)
+                self.db.outcomes_insert(outcome)
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
                 # continue
@@ -551,21 +562,21 @@ class Oracle:
 
     def dummy_outcome_for_event(self, event_id):
         e = self.db.events_get_by_id(event_id)
-        if e != None:
-            # make a copy, we don't want to store the premature dummy outcome
-            ecopy = copy.deepcopy(e)
-            if e.outcome is None:
-                # has no outcome yet
-                symbol = e.desc.definition
-                value = self.get_price(symbol, e.dto.time)
-                now = time.time()
-                try:
-                    ecopy.outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
-                except Exception as ex:
-                    print(f"Exception while generating outcome, {ex}")
-                    return {}
-            return self.get_event_info(ecopy)
-        return {}
+        if e == None:
+            return {}
+        if self.db.outcomes_get(event_id) is not None:
+            # has outcome
+            return self.get_event_info(e)
+        # has no outcome yet
+        symbol = e.desc.definition
+        value = self.get_price(symbol, e.dto.time)
+        now = time.time()
+        try:
+            outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
+            return self._get_event_info_with_outcome(e, outcome)
+        except Exception as ex:
+            print(f"Exception while generating outcome, {ex}")
+            return {}
 
     def check_outcome_loop(self):
         print("check_outcome_loop started", round(time.time()))
