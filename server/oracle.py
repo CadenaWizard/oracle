@@ -273,32 +273,30 @@ class Event:
         return info
 
 
-class Oracle:
-    public_key: str = ""
-    _event_classes = []
+# TODO:
+# store in DB
+# Store eventclasses, nonces, digitoutcomes, outcomes, publickeys separately
+# No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
+class SimulatedDb:
+    _event_classes: list[EventClassDto] = []
     # Holds all the events, past and future. Key is the ID
-    _events = {}
-    price_source = PriceSource()
-
-    def __init__(self, public_key):
-        self.clear()
-        self.public_key = public_key
+    _events: dict[str, Event] = {}
 
     def event_classes_clear(self):
         self._event_classes = []
 
-    def event_classes_insert(self, ec: EventClass):
+    def event_classes_insert(self, ec: EventClassDto):
         self._event_classes.append(ec)
 
     def event_classes_len(self) -> int:
         return len(self._event_classes)
 
-    def event_classes_get_all(self) -> list[EventClass]:
+    def event_classes_get_all(self) -> list[EventClassDto]:
         return self._event_classes
 
-    def event_classes_get_by_def(self, definition: str) -> EventClass:
+    def event_classes_get_by_def(self, definition: str) -> EventClassDto:
         for ec in self._event_classes:
-            if ec.desc.definition == definition:
+            if ec.definition == definition:
                 return ec
         # Not found
         return None
@@ -312,7 +310,7 @@ class Oracle:
     def events_len(self) -> int:
         return len(self._events)
 
-    def events_get_by_id(self, event_id: str):
+    def events_get_by_id(self, event_id: str) -> Event | None:
         if event_id in self._events:
             return self._events[event_id]
         return None
@@ -323,8 +321,8 @@ class Oracle:
         for _eid, e in self._events.items():
             if e.outcome is not None:
                 continue
-            if e.time < t:
-                t = e.time
+            if e.dto.time < t:
+                t = e.dto.time
         return t
 
     def events_set_outcome(self, event_id, outcome):
@@ -385,8 +383,18 @@ class Oracle:
         return r
 
     def clear(self):
-        self.event_classes_clear()
-        self.events_clear()
+        self._event_classes = []
+        self._events = {}
+
+
+class Oracle:
+    def __init__(self, public_key):
+        self.db = SimulatedDb()
+        self.public_key = public_key
+        self.price_source = PriceSource()
+
+    def clear(self):
+        self.db.clear()
 
     def load_event_classes(self, event_classes):
         self.clear()
@@ -396,14 +404,14 @@ class Oracle:
     def add_event_class(self, ec):
         print("Generating events.for event class '", ec.dto.id, "' ...")
         events = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
-        self.event_classes_insert(ec)
+        self.db.event_classes_insert(ec.dto)
         # Merge
-        self.events_append(events)
-        print(f"Loaded event class '{ec.dto.id}', generated {len(events)} events, total {self.events_len()}")
+        self.db.events_append(events)
+        print(f"Loaded event class '{ec.dto.id}', generated {len(events)} events, total {self.db.events_len()}")
 
     def print(self):
         now = time.time()
-        print(f"Oracle, with {self.events_count_future(now)} events ({self.events_len()} total), and {self.event_classes_len()} eventclasses")
+        print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
     def generate_events_from_class(self, ec: EventClass, signer_public_key: str):
         e = {}
@@ -425,10 +433,10 @@ class Oracle:
         }
 
     def get_oracle_status_time(self, current_time: float):
-        future_count = self.events_count_future(current_time)
+        future_count = self.db.events_count_future(current_time)
         return {
             "future_event_count": future_count,
-            "total_event_count": self.events_len(),
+            "total_event_count": self.db.events_len(),
             "current_time_utc": round(time.time(), 3),
         }
 
@@ -449,16 +457,19 @@ class Oracle:
 
     # Get event classes
     def get_event_classes(self):
-        return list(map(lambda ec: ec.to_info(), self.event_classes_get_all()))
+        return list(map(lambda ec_dto: EventClass(ec_dto).to_info(), self.db.event_classes_get_all()))
 
     def get_event_class(self, definition: str) -> EventClass:
         if not definition:
             return None
         def_upper = definition.upper()
-        return self.event_classes_get_by_def(def_upper)
+        dto = self.db.event_classes_get_by_def(def_upper)
+        if dto == None:
+            return None
+        return EventClass(dto)
 
     def get_event_by_id(self, event_id: str):
-        e = self.events_get_by_id(event_id)
+        e = self.db.events_get_by_id(event_id)
         if not e:
             return {}
         return e.get_event_info()
@@ -469,7 +480,7 @@ class Oracle:
             definition = definition.upper()
         max_count_hard_limit = 100
         max_count = min(max_count, max_count_hard_limit)
-        events = self.events_get_filter(start_time, end_time, definition, max_count)
+        events = self.db.events_get_filter(start_time, end_time, definition, max_count)
         event_infos = list(map(lambda e: e.get_event_info(), events))
         return event_infos
 
@@ -477,10 +488,10 @@ class Oracle:
     def get_event_ids_filter(self, start_time: int = 0, end_time = 0, definition: str = None) -> list[str]:
         if definition is not None:
             definition = definition.upper()
-        return self.events_get_ids_filter(start_time, end_time, definition, 5000)
+        return self.db.events_get_ids_filter(start_time, end_time, definition, 5000)
 
     # Get the next instance of an event class, after the given time
-    def get_next_event(self, definition: str = None, period: int = 60):
+    def get_next_event(self, definition: str = None, period: int = 60) -> dict:
         period_cap = max(period, 60)
         # Compute the next event, try to find that
         event_class = self.get_event_class(definition)
@@ -493,7 +504,7 @@ class Oracle:
         if not next_event_id:
             return {}
 
-        event = self.events_get_by_id(next_event_id)
+        event = self.db.events_get_by_id(next_event_id)
         if not event:
             return {}
         assert(event.time >= abs_time)
@@ -505,15 +516,15 @@ class Oracle:
     def create_past_outcomes_time(self, current_time: float) -> int:
         cnt = 0
         # past events without outcome
-        pe = self.events_get_past_no_outcome(current_time)
+        pe = self.db.events_get_past_no_outcome(current_time)
         print(f"Found {len(pe)} events in the past without outcome")
         for eid in pe:
-            e = self.events_get_by_id(eid)
+            e = self.db.events_get_by_id(eid)
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
                 outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.get_nonces())
-                self.events_set_outcome(e.dto.event_id, outcome)
+                self.db.events_set_outcome(e.dto.event_id, outcome)
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
                 # continue
@@ -528,7 +539,7 @@ class Oracle:
         return self.create_past_outcomes_time(now)
 
     def dummy_outcome_for_event(self, event_id):
-        e = self.events_get_by_id(event_id)
+        e = self.db.events_get_by_id(event_id)
         if e != None:
             # make a copy, we don't want to store the premature dummy outcome
             ecopy = copy.deepcopy(e)
@@ -550,7 +561,7 @@ class Oracle:
         time.sleep(10)
         while True:
             self.create_past_outcomes()
-            earliest = self.events_get_earliest_time_without_outcome()
+            earliest = self.db.events_get_earliest_time_without_outcome()
             now = time.time()
             # wait a bit for the next event, but limit wait to min/max values
             towait_unbound = (earliest - now) / 2 - 1

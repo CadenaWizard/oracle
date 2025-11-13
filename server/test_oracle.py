@@ -27,8 +27,8 @@ class OracleTestCase(unittest.TestCase):
         o = Oracle(self.public_key)
         o.print()
         self.assertEqual(o.public_key, self.public_key)
-        self.assertEqual(o.event_classes_len(), 0)
-        self.assertEqual(o.events_len(), 0)
+        self.assertEqual(o.db.event_classes_len(), 0)
+        self.assertEqual(o.db.events_len(), 0)
         self.assertEqual(o.get_oracle_info(), {'public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG'})
 
     # Create Oracle and fill with event classes
@@ -36,8 +36,8 @@ class OracleTestCase(unittest.TestCase):
         o = Oracle(self.public_key)
         o.load_event_classes(self.event_classes)
         o.print()
-        self.assertEqual(o.event_classes_len(), 2)
-        self.assertEqual(o.events_len(), 2 * 38)
+        self.assertEqual(o.db.event_classes_len(), 2)
+        self.assertEqual(o.db.events_len(), 2 * 38)
         # Status, current time is variable
         status = o.get_oracle_status_time(self.now)
         status['current_time_utc'] = 123
