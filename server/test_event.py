@@ -178,26 +178,12 @@ class NonceTestCase(unittest.TestCase):
 
 
 class NoncesTestCase(unittest.TestCase):
-    def test_init(self):
-        event_id = "event001"
-        n = []
-        for i in range(0, 7):
-            npub = "npub00" + str(i)
-            nsec = "nsec00" + str(i)
-            nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=npub, nonce_sec=nsec)
-            n.append(nonce)
-        nonces = Nonces(n)
-        self.assertEqual(len(nonces.n), 7)
-        self.assertEqual(nonces.n[3].event_id, event_id)
-        self.assertEqual(nonces.n[3].digit_index, 3)
-        self.assertEqual(nonces.n[3].nonce_sec, "nsec003")
-
     def test_generate(self):
         nonces = Nonces.generate("event001", 9)
-        self.assertEqual(len(nonces.n), 9)
-        self.assertEqual(nonces.n[3].event_id, "event001")
-        self.assertEqual(nonces.n[3].digit_index, 3)
-        self.assertEqual(len(nonces.n[3].nonce_sec), 64)
+        self.assertEqual(len(nonces), 9)
+        self.assertEqual(nonces[3].event_id, "event001")
+        self.assertEqual(nonces[3].digit_index, 3)
+        self.assertEqual(len(nonces[3].nonce_sec), 64)
 
 
 class OutcomeTestCase(unittest.TestCase):
@@ -262,29 +248,6 @@ class EventTestCase(unittest.TestCase):
         self.assertEqual(e.dto.time, time)
         self.assertEqual(e.dto.signer_public_key, "0123")
         self.assertEqual(e.dto.string_template, "Outcome:btcusd1705190400:{digit_index}:{digit_outcome}")
-
-        info = e.get_event_info()
-        # Nonces may change
-        self.assertEqual(len(info['nonces']), 8)
-        self.assertEqual(len(info['nonces'][0]), 66)
-        del info['nonces']
-        self.assertEqual(info, {
-            'event_id': 'btcusd1705190400',
-            'time_utc': 1705190400,
-            'time_utc_nice': '2024-01-14 00:00:00+00:00',
-            'definition': 'BTCUSD',
-            'event_type': 'numeric',
-            'range_digits': 8,
-            'range_digit_low_pos': 0,
-            'range_digit_high_pos': 7,
-            'range_unit': 1,
-            'range_min_value': 0,
-            'range_max_value': 99999999,
-            'event_class': 'btcusd',
-            'signer_public_key': '0123',
-            'string_template': 'Outcome:btcusd1705190400:{digit_index}:{digit_outcome}',
-            'has_outcome': False,
-        })
 
 
 if __name__ == "__main__":

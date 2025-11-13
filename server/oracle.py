@@ -165,14 +165,9 @@ class EventClass:
         return EventClass.new("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
 
 
-# Holds a set of nonces for an event (one per digit); public and secret nonces
-# Nonces to be used in the attestation signature
 class Nonces:
-    def __init__(self, nonces: list[Nonce]):
-        self.n = nonces
-
     # Generate nonces. Note: this is a bit slow due to key operations
-    def generate(event_id, range_digits):
+    def generate(event_id: str, range_digits: int) -> list[Nonce]:
         nonces = []
         for i in range(range_digits):
             # TODO use a non-deterministic, true random nonce here
@@ -180,7 +175,7 @@ class Nonces:
             nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=newnonce[1], nonce_sec=newnonce[0])
             nonces.append(nonce)
         print(".", end="")
-        return Nonces(nonces)
+        return nonces
 
 
 class Outcome:
@@ -189,7 +184,7 @@ class Outcome:
         self.digits = digit_outcomes
 
     # Create the outcome. May throw
-    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: Nonces):
+    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: list[Nonce]):
         outcome_dto = OutcomeDto(event_id=event_id, value=outcome_value, created_time=created_time)
 
         digit_values = event_desc.value_to_digits(float(outcome_value))
@@ -198,14 +193,14 @@ class Outcome:
         # check that digit_values[], nonces.n[] have enough elements
         if len(digit_values) < n:
             raise Exception(f"Not enough digit_values, {digit_values} {n}")
-        if len(nonces.n) < n:
-            raise Exception(f"Not enough nonces, {len(nonces.n)} {n}")
+        if len(nonces) < n:
+            raise Exception(f"Not enough nonces, {len(nonces)} {n}")
 
         digits = []
         for i in range(n):
             msg = Outcome.string_for_event(event_desc, event_id, i, digit_values[i])
-            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces.n[i].nonce_sec, 0)
-            digit_outcome = DigitOutcome(event_id, i, digit_values[i], nonces.n[i].nonce_pub, sig, msg)
+            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces[i].nonce_sec, 0)
+            digit_outcome = DigitOutcome(event_id, i, digit_values[i], nonces[i].nonce_pub, sig, msg)
             digits.append(digit_outcome)
         return Outcome(dto=outcome_dto, digit_outcomes=digits)
 
@@ -224,7 +219,6 @@ class Event:
         self.desc = EventClass(event_class_dto).desc
         self.event_class = event_class_dto.id
         # set later on-demand, on first use
-        self._nonces = None  
         self.outcome = None
 
     def new(time, event_class: EventClass, signer_public_key: str):
@@ -238,52 +232,17 @@ class Event:
     def event_id_from_class_and_time(event_class, time):
         return event_class.dto.id + str(time)
 
-    # Access nonces, Fill on-demand
-    def get_nonces(self) -> Nonces:
-        if not self._nonces:
-            self._nonces = Nonces.generate(self.dto.event_id, self.desc.range_digits)
-        return self._nonces
-
-    def get_event_info(self):
-        has_outcome = (self.outcome is not None)
-        nonces = self.get_nonces()
-        info = {
-            "event_id": self.dto.event_id,
-            "time_utc": self.dto.time,
-            "time_utc_nice": str(datetime.fromtimestamp(self.dto.time, UTC)),
-            "definition": self.desc.definition,
-            "event_type": self.desc.event_type,
-            "range_digits": self.desc.range_digits,
-            "range_digit_low_pos": self.desc.range_digit_low_pos,
-            "range_digit_high_pos": self.desc.get_digit_high_pos(),
-            "range_unit": self.desc.get_unit(),
-            "range_min_value": self.desc.get_minimum_value(),
-            "range_max_value": self.desc.get_maximum_value(),
-            "event_class": self.event_class,
-            "signer_public_key": self.dto.signer_public_key,
-            "string_template": self.dto.string_template,
-            "has_outcome": has_outcome,
-            # public nonces
-            "nonces": list(map(lambda n: n.nonce_pub, nonces.n)),
-        }
-        if has_outcome:
-            info["outcome_value"] = self.outcome.dto.value
-            info["outcome_time"] = self.outcome.dto.created_time
-            info["digits"] = list(map(lambda di: di.to_info(), self.outcome.digits))
-        return info
-
 
 # TODO:
 # store in DB
-# Store eventclasses, nonces, digitoutcomes, outcomes, publickeys separately
+# Store digitoutcomes, outcomes, publickeys separately
 # No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
 class SimulatedDb:
     _event_classes: list[EventClassDto] = []
+    # Holds all the nonces, key is event ID
+    _nonces: dict[str, list[Nonce]] = {}
     # Holds all the events, past and future. Key is the ID
     _events: dict[str, Event] = {}
-
-    def event_classes_clear(self):
-        self._event_classes = []
 
     def event_classes_insert(self, ec: EventClassDto):
         self._event_classes.append(ec)
@@ -301,8 +260,20 @@ class SimulatedDb:
         # Not found
         return None
 
-    def events_clear(self):
-        self._events = {}
+    def nonces_insert_one(self, nonce: Nonce):
+        eid = nonce.event_id
+        if eid not in self._nonces:
+            self._nonces[eid] = []
+        self._nonces[eid].append(nonce)
+
+    def nonces_insert(self, nonces: list[Nonce]):
+        for n in nonces:
+            self.nonces_insert_one(n)
+
+    def nonces_get(self, event_id: str) -> list[Nonce]:
+        if event_id not in self._nonces:
+            return []
+        return self._nonces[event_id]
 
     def events_append(self, more_events: list[Event]):
         self._events = {**self._events, **more_events}
@@ -468,11 +439,51 @@ class Oracle:
             return None
         return EventClass(dto)
 
+    # Access nonces, Fill on-demand
+    def get_nonces(self, event: Event) -> list[Nonce]:
+        eid = event.dto.event_id
+        nonces = self.db.nonces_get(eid)
+        if len(nonces) > 0:
+            # There are nonces
+            return nonces
+        # No nonces, generate now
+        nonces = Nonces.generate(eid, event.desc.range_digits)
+        self.db.nonces_insert(nonces)
+        return self.db.nonces_get(eid)
+
+    def get_event_info(self, event: Event):
+        has_outcome = (event.outcome is not None)
+        nonces = self.get_nonces(event)
+        info = {
+            "event_id": event.dto.event_id,
+            "time_utc": event.dto.time,
+            "time_utc_nice": str(datetime.fromtimestamp(event.dto.time, UTC)),
+            "definition": event.desc.definition,
+            "event_type": event.desc.event_type,
+            "range_digits": event.desc.range_digits,
+            "range_digit_low_pos": event.desc.range_digit_low_pos,
+            "range_digit_high_pos": event.desc.get_digit_high_pos(),
+            "range_unit": event.desc.get_unit(),
+            "range_min_value": event.desc.get_minimum_value(),
+            "range_max_value": event.desc.get_maximum_value(),
+            "event_class": event.event_class,
+            "signer_public_key": event.dto.signer_public_key,
+            "string_template": event.dto.string_template,
+            "has_outcome": has_outcome,
+            # public nonces
+            "nonces": list(map(lambda n: n.nonce_pub, nonces)),
+        }
+        if has_outcome:
+            info["outcome_value"] = event.outcome.dto.value
+            info["outcome_time"] = event.outcome.dto.created_time
+            info["digits"] = list(map(lambda di: di.to_info(), event.outcome.digits))
+        return info
+
     def get_event_by_id(self, event_id: str):
         e = self.db.events_get_by_id(event_id)
         if not e:
             return {}
-        return e.get_event_info()
+        return self.get_event_info(e)
 
     # Note: Max count is capped at the hard limit of 100 events, to prevent large responses
     def get_events_filter(self, start_time: int = 0, end_time = 0, definition: str = None, max_count: int = 100) -> list[dict]:
@@ -481,7 +492,7 @@ class Oracle:
         max_count_hard_limit = 100
         max_count = min(max_count, max_count_hard_limit)
         events = self.db.events_get_filter(start_time, end_time, definition, max_count)
-        event_infos = list(map(lambda e: e.get_event_info(), events))
+        event_infos = list(map(lambda e: self.get_event_info(e), events))
         return event_infos
 
     # Note: a hard limit of 5000 limit is applied, to prevent very large responses
@@ -508,7 +519,7 @@ class Oracle:
         if not event:
             return {}
         assert(event.time >= abs_time)
-        return event.get_event_info()
+        return self.get_event_info(event)
 
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price
@@ -523,7 +534,7 @@ class Oracle:
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
-                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.get_nonces())
+                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, self.get_nonces(e))
                 self.db.events_set_outcome(e.dto.event_id, outcome)
             except Exception as ex:
                 print(f"Exception while generating outcome, {ex}")
@@ -549,11 +560,11 @@ class Oracle:
                 value = self.get_price(symbol, e.dto.time)
                 now = time.time()
                 try:
-                    ecopy.outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, e.get_nonces())
+                    ecopy.outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
                 except Exception as ex:
                     print(f"Exception while generating outcome, {ex}")
                     return {}
-            return ecopy.get_event_info()
+            return self.get_event_info(ecopy)
         return {}
 
     def check_outcome_loop(self):

@@ -70,9 +70,35 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(o.get_event_class('btcusd').dto.definition, 'BTCUSD')
         self.assertEqual(o.get_event_class('btcUSD').dto.definition, 'BTCUSD')
 
-        self.assertEqual(o.get_event_by_id('btceur1762970400')['time_utc'], 1762970400)
-        self.assertEqual(o.get_event_by_id('btceur1762970400')['definition'], 'BTCEUR')
+        # Nonexistent ID
         self.assertEqual(o.get_event_by_id('btceur1762970407'), {})
+
+        ev1 = o.get_event_by_id('btceur1762970400')
+        self.assertEqual(ev1['time_utc'], 1762970400)
+        self.assertEqual(ev1['definition'], 'BTCEUR')
+
+        # Nonces may change
+        self.assertEqual(len(ev1['nonces']), 7)
+        self.assertEqual(len(ev1['nonces'][0]), 66)
+        del ev1['nonces']
+        self.assertEqual(ev1, {
+            'event_id': 'btceur1762970400',
+            'time_utc': 1762970400,
+            'time_utc_nice': '2025-11-12 18:00:00+00:00',
+            'definition': 'BTCEUR',
+            'event_type': 'numeric',
+            'range_digits': 7,
+            'range_digit_low_pos': 0,
+            'range_digit_high_pos': 6,
+            'range_unit': 1,
+            'range_min_value': 0,
+            'range_max_value': 9999999,
+            'event_class': 'btceur',
+            'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
+            'has_outcome': False,
+        })
+
+
 
     def test_filter(self):
         o = Oracle(self.public_key)
