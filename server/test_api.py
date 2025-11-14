@@ -47,8 +47,3 @@ test_call("price_info/current_all")
 
 test_call("price_info/current/btceur")
 
-# To demonstrate dummy_outcome_for_event, we need a future event, we need to construct a future ID
-future_id = 1704067200 + (int((now - 1704067200) / 43200)) * 43200 + 5 * 43200
-test_call("event/event/btceur{}".format(future_id))
-test_call("test_only/dummy_outcome_for_event/btceur{}".format(future_id))
-test_call("event/event/btceur{}".format(future_id))

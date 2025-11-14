@@ -458,23 +458,23 @@ class Oracle:
         print("Checking for past outcome generation ...", round(now))
         return self._create_past_outcomes_time(now)
 
-    def dummy_outcome_for_event(self, event_id):
-        e = self.get_event_obj_by_id(event_id)
-        if e == None:
-            return {}
-        if self.db.outcomes_exists(event_id):
-            # already has outcome
-            return self.get_event_info(e)
-        # has no outcome yet
-        symbol = e.desc.definition
-        value = self.get_price(symbol, e.dto.time)
-        now = time.time()
-        try:
-            outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
-            return self._get_event_info_with_outcome(e, outcome)
-        except Exception as ex:
-            print(f"Exception while generating dummy outcome, {ex}")
-            return {}
+    # def dummy_outcome_for_event(self, event_id):
+    #     e = self.get_event_obj_by_id(event_id)
+    #     if e == None:
+    #         return {}
+    #     if self.db.outcomes_exists(event_id):
+    #         # already has outcome
+    #         return self.get_event_info(e)
+    #     # has no outcome yet
+    #     symbol = e.desc.definition
+    #     value = self.get_price(symbol, e.dto.time)
+    #     now = time.time()
+    #     try:
+    #         outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
+    #         return self._get_event_info_with_outcome(e, outcome)
+    #     except Exception as ex:
+    #         print(f"Exception while generating dummy outcome, {ex}")
+    #         return {}
 
     def check_outcome_loop(self):
         print("check_outcome_loop started", round(time.time()))
