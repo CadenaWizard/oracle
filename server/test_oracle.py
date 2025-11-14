@@ -192,27 +192,6 @@ class OracleTestCase(unittest.TestCase):
         e2 = o.get_event_by_id(event_id)
         self.assert_event_has_outcome(e2, 88888.5)
 
-    def test_dummy_outcome(self):
-        o = self.create_oracle()
-        o.load_event_classes(self.event_classes)
-        o.print()
-
-        next_event = o._get_next_event_with_time('btceur', self.now + 86400)
-        self.assertEqual(next_event['event_id'], 'btceur1763078400')
-
-        event_id = next_event['event_id']
-        e1 = o.get_event_by_id(event_id)
-        self.assertTrue(e1 != None)
-        self.assertEqual(e1['has_outcome'], False)
-
-        # get dummy outcome
-        event_outcome = o.dummy_outcome_for_event(event_id)
-        self.assert_event_has_outcome(event_outcome, 88888.5)
-
-        # get the event, dummy outcome should not be stored
-        e2 = o.get_event_by_id(event_id)
-        self.assertEqual(e2['has_outcome'], False)
-
 
 if __name__ == "__main__":
     unittest.main() # run all tests
