@@ -70,10 +70,6 @@ def api_price_current_all():
 def api_price_current(symbol: str):
     return oracle_app.get_current_price_info(symbol)
 
-@app.get("/api/v0/test_only/dummy_outcome_for_event/{event_id}")
-def dummy_outcome_for_event(event_id: str):
-    return oracle_app.oracle.dummy_outcome_for_event(event_id)
-
 @app.get("/")
 def read_root():
     return {"Oracle": "API"}
