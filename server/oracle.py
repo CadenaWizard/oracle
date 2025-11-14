@@ -551,23 +551,23 @@ class Oracle:
                 t = e.time
         return t
 
-    def dummy_outcome_for_event(self, event_id):
-        if event_id in self.events:
-            e = self.events[event_id]
-            # make a copy, we don't want to store the premature dummy outcome
-            ecopy = copy.deepcopy(e)
-            if e.outcome is None:
-                # has no outcome yet
-                symbol = e.desc.definition
-                value = self.get_price(symbol, e.time)
-                now = time.time()
-                try:
-                    ecopy.outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
-                except Exception as ex:
-                    print(f"Exception while generating outcome, {ex}")
-                    return {}
-            return ecopy.get_event_info()
-        return {}
+    # def dummy_outcome_for_event(self, event_id):
+    #     if event_id in self.events:
+    #         e = self.events[event_id]
+    #         # make a copy, we don't want to store the premature dummy outcome
+    #         ecopy = copy.deepcopy(e)
+    #         if e.outcome is None:
+    #             # has no outcome yet
+    #             symbol = e.desc.definition
+    #             value = self.get_price(symbol, e.time)
+    #             now = time.time()
+    #             try:
+    #                 ecopy.outcome = Outcome(str(value), e.event_id, e.desc, now, e.get_nonces())
+    #             except Exception as ex:
+    #                 print(f"Exception while generating outcome, {ex}")
+    #                 return {}
+    #         return ecopy.get_event_info()
+    #     return {}
 
     def check_outcome_loop(self):
         print("check_outcome_loop started", round(time.time()))
