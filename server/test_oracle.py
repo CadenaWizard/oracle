@@ -42,10 +42,9 @@ class OracleTestCase(unittest.TestCase):
 
     # Helper to create oracle instance
     def create_oracle(self):
-        o = Oracle(self.public_key)
-        # Overwrite price source
+        # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o.price_source = price_mock
+        o = Oracle(self.public_key, price_mock)
         return o
 
     # Create Oracle
@@ -187,7 +186,7 @@ class OracleTestCase(unittest.TestCase):
 
         # Generate outcomes
         cnt = o._create_past_outcomes_time(self.now)
-        self.assertTrue(cnt >= 10)
+        self.assertEqual(cnt, 16)
 
         # get the event, should have outcome
         e2 = o.get_event_by_id(event_id)

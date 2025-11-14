@@ -232,10 +232,12 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key):
+    def __init__(self, public_key, price_source = None):
+        if price_source is None:
+            price_source = PriceSource()
         self.db = EventStorage()
         self.public_key = public_key
-        self.price_source = PriceSource()
+        self.price_source = price_source
 
     def clear(self):
         self.db.clear()
