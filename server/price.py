@@ -9,18 +9,17 @@ import time
 
 # Can provide current price infos
 class PriceSource:
-    bitstamp_source = BitstampPriceSource()
-    # binance_global_source = BinancePriceSource(True)
-    binance_us_source = BinancePriceSource(False)
+    def __init__(self):
+        self.bitstamp_source = BitstampPriceSource()
+        # binance_global_source = BinancePriceSource(True)
+        self.binance_us_source = BinancePriceSource(False)
 
-    # def __init__(self):
-
-    def get_symbols(self) -> [str]:
+    def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]
 
     # Return current price (info).
     # Supplied time is only a hint (used in case of dummy)
-    def get_price_info(self, symbol: str, preferred_time: int):
+    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
         symbol = symbol.upper()
         price_infos = []
 

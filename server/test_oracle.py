@@ -1,8 +1,27 @@
-from oracle import EventClass, Oracle
+from oracle import EventClass, EventDescription, Oracle
+from price_common import PriceInfo
 from test_common import initialize_cryptlib
 
 import math
 import unittest
+
+
+# A test mock for PriceSource, returns a constant price
+class PriceSourceMockConstant:
+    def __init__(self, const_price: float):
+        self.const_price = const_price
+        self.symbol_rates = {
+            'BTCUSD': 1.0,
+            'BTCEUR': 0.9,
+        }
+
+    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
+        symbol = symbol.upper()
+        if symbol not in self.symbol_rates:
+            return self.const_price
+        relative_rate = self.symbol_rates[symbol]
+        rate = self.const_price * relative_rate
+        return PriceInfo(rate, symbol, preferred_time, "MockConstant")
 
 
 class OracleTestCase(unittest.TestCase):
@@ -21,10 +40,16 @@ class OracleTestCase(unittest.TestCase):
             EventClass.new("btceur", "BTCEUR", 7, 0, start_time, repeat_time, end_time),
         ]
 
+    # Helper to create oracle instance
+    def create_oracle(self):
+        # Custom price source
+        price_mock = PriceSourceMockConstant(98765)
+        o = Oracle(self.public_key, price_mock)
+        return o
 
     # Create Oracle
     def test_init(self):
-        o = Oracle(self.public_key)
+        o = self.create_oracle()
         o.print()
         self.assertEqual(o.public_key, self.public_key)
         self.assertEqual(o.db.event_classes_len(), 0)
@@ -33,7 +58,7 @@ class OracleTestCase(unittest.TestCase):
 
     # Create Oracle and fill with event classes
     def test_load(self):
-        o = Oracle(self.public_key)
+        o = self.create_oracle()
         o.load_event_classes(self.event_classes)
         o.print()
         self.assertEqual(o.db.event_classes_len(), 2)
@@ -99,7 +124,7 @@ class OracleTestCase(unittest.TestCase):
         })
 
     def test_filter(self):
-        o = Oracle(self.public_key)
+        o = self.create_oracle()
         o.load_event_classes(self.event_classes)
         o.print()
 
@@ -135,16 +160,22 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
 
-    def assert_event_has_outcome(self, event):
+    def assert_event_has_outcome(self, event, expected_price):
+        digits = event['range_digits']
+        self.assertEqual(digits, 7)
+        event_class = EventDescription(event['definition'], digits, event['range_digit_low_pos'])
+        expected_price_digits = event_class.value_to_digits(expected_price)
         self.assertEqual(event['has_outcome'], True)
-        # TODO: outcome price varies, should be stubbed
+        self.assertAlmostEqual(float(event['outcome_value']), float(expected_price))
         self.assertEqual(len(event['digits']), 7)
-        digit5 = event['digits'][5]
-        self.assertEqual(digit5['index'], 5)
-        self.assertEqual(len(digit5['signature']), 128)
+        for i in range(0, digits):
+            digit_i = event['digits'][i]
+            self.assertEqual(digit_i['index'], i)
+            self.assertEqual(digit_i['value'], expected_price_digits[i])
+            self.assertEqual(len(digit_i['signature']), 128)
 
     def test_outcome(self):
-        o = Oracle(self.public_key)
+        o = self.create_oracle()
         o.load_event_classes(self.event_classes)
         o.print()
 
@@ -155,14 +186,14 @@ class OracleTestCase(unittest.TestCase):
 
         # Generate outcomes
         cnt = o._create_past_outcomes_time(self.now)
-        self.assertTrue(cnt >= 10)
+        self.assertEqual(cnt, 16)
 
         # get the event, should have outcome
         e2 = o.get_event_by_id(event_id)
-        self.assert_event_has_outcome(e2)
+        self.assert_event_has_outcome(e2, 88888.5)
 
     def test_dummy_outcome(self):
-        o = Oracle(self.public_key)
+        o = self.create_oracle()
         o.load_event_classes(self.event_classes)
         o.print()
 
@@ -176,7 +207,7 @@ class OracleTestCase(unittest.TestCase):
 
         # get dummy outcome
         event_outcome = o.dummy_outcome_for_event(event_id)
-        self.assert_event_has_outcome(event_outcome)
+        self.assert_event_has_outcome(event_outcome, 88888.5)
 
         # get the event, dummy outcome should not be stored
         e2 = o.get_event_by_id(event_id)
