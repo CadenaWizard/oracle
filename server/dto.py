@@ -10,8 +10,9 @@ class EventClassDto:
     #   Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
     # - repeat_first_time: The time of the first event (unix time), e.g. 1704067200
     # - repeat_period: The repetition period, in secs (e.g. 86400 for one day)
+    # - repeat_offset: The offset compared to an entire multiple of repeat_period, recommended 0.
     # - repeat_last_time: The time of the firstlast event (unix time), e.g. 2019682800
-    def __init__(self, id: str, definition: str, digits: int, digit_low_pos: int, event_string_template: str, repeat_first_time: int, repeat_period: int, repeat_last_time: int):
+    def __init__(self, id: str, definition: str, digits: int, digit_low_pos: int, event_string_template: str, repeat_first_time: int, repeat_period: int, repeat_offset: int, repeat_last_time: int):
         self.id = id
         self.definition = definition
         self.range_digits = digits
@@ -19,6 +20,7 @@ class EventClassDto:
         self.event_string_template = event_string_template
         self.repeat_first_time = repeat_first_time
         self.repeat_period = repeat_period
+        self.repeat_offset = repeat_offset
         self.repeat_last_time = repeat_last_time
 
 

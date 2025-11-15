@@ -118,6 +118,7 @@ class EventClassTestCase(unittest.TestCase):
             },
             "repeat_first_time": 1704067200,
             "repeat_period": 86400,
+            "repeat_offset": 0,
             "repeat_last_time": 2019682800
         }
         self.assertEqual(info, expected)

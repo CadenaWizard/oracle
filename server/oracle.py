@@ -109,8 +109,10 @@ class EventClass:
         self.dto = dto
         self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
 
+    # Note: repeat_offset is computed from repeat_first_time, later repeat_first_time should be retired
     def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
         descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+        repeat_offset = repeat_first_time % repeat_period
         dto = EventClassDto(
             id=id,
             definition=descirption.definition,
@@ -119,6 +121,7 @@ class EventClass:
             event_string_template=descirption.event_string_template,
             repeat_first_time=repeat_first_time,
             repeat_period=repeat_period,
+            repeat_offset=repeat_offset,
             repeat_last_time=repeat_last_time
         )
         return EventClass(dto)
@@ -129,6 +132,7 @@ class EventClass:
             "desc": self.desc.to_info(),
             "repeat_first_time": self.dto.repeat_first_time,
             "repeat_period": self.dto.repeat_period,
+            "repeat_offset": self.dto.repeat_offset,
             "repeat_last_time": self.dto.repeat_last_time,
         }
 
@@ -147,6 +151,7 @@ class EventClass:
         assert(next_time >= abs_time)
         assert(next_time >= self.dto.repeat_first_time)
         assert(next_time <= self.dto.repeat_last_time)
+        assert(next_time % self.dto.repeat_period <= self.dto.repeat_offset)
         return next_time
 
     # Get the ID of the next future event following the given time, 0 on error
@@ -260,7 +265,9 @@ class Oracle:
         e = {}
         t = ec.dto.repeat_first_time
         cnt = 0
+        assert(ec.dto.repeat_period != 0)
         while t <= ec.dto.repeat_last_time:
+            assert(t % ec.dto.repeat_period == ec.dto.repeat_offset)
             # create event
             ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
             eid = ev.dto.event_id
@@ -289,9 +296,9 @@ class Oracle:
         now = time.time()
         return self._get_oracle_status_time(now)
 
+    # TODO: such operational data should be moved out of code, into config/DB
     def get_default_instance(pubkey):
         o = Oracle(pubkey)
-        # ev = EventClass.get_sample_instance()
         repeat_first_time = 1704067200 + 17 * 30 * 86400
         repeat_last_time = repeat_first_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[

@@ -87,8 +87,9 @@ class OracleTestCase(unittest.TestCase):
                 'range_unit': 1,
             },
             'repeat_first_time': 1762963200,
-            'repeat_last_time': 1763096400,
             'repeat_period': 3600,
+            "repeat_offset": 0,
+            'repeat_last_time': 1763096400,
         })
 
         self.assertEqual(o.get_event_class('MISSING_DEFINITION'), None)
