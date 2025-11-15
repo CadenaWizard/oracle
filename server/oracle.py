@@ -162,9 +162,6 @@ class EventClass:
         next_event_id = Event.event_id_from_class_and_time(self, next_event_time)
         return next_event_id
 
-    dto: EventClassDto
-    desc: EventDescription
-
 
 class Nonces:
     # Generate nonces. Note: this is a bit slow due to key operations
@@ -215,18 +212,17 @@ class Outcome:
 class Event:
     """An individual event"""
 
-    def __init__(self, dto: EventDto, event_class_dto: EventClassDto):
+    def __init__(self, dto: EventDto, desc: EventDescription, event_class_id: str):
         self.dto = dto
-        self.desc = EventClass(event_class_dto).desc
-        self.event_class = event_class_dto.id
-        # set later on-demand, on first use
+        self.desc = desc
+        self.event_class_id = event_class_id
 
     def new(time, event_class: EventClass, signer_public_key: str):
         assert(event_class is not None)
         event_id = Event.event_id_from_class_and_time(event_class, time)
         string_template = event_class.desc.event_string_template_for_id(event_id)
         event_dto = EventDto(event_id=event_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
-        return Event(event_dto, event_class.dto)
+        return Event(event_dto, event_class.desc, event_class.dto.id)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
@@ -249,7 +245,7 @@ class Oracle:
         for ec in event_classes:
             self.add_event_class(ec)
 
-    def add_event_class(self, ec):
+    def add_event_class(self, ec: EventClass):
         print("Generating events.for event class '", ec.dto.id, "' ...")
         event_dtos = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
         self.db.event_classes_insert(ec.dto)
@@ -360,7 +356,7 @@ class Oracle:
             "range_unit": event.desc.get_unit(),
             "range_min_value": event.desc.get_minimum_value(),
             "range_max_value": event.desc.get_maximum_value(),
-            "event_class": event.event_class,
+            "event_class": event.event_class_id,
             "signer_public_key": event.dto.signer_public_key,
             "string_template": event.dto.string_template,
             "has_outcome": has_outcome,
@@ -380,11 +376,12 @@ class Oracle:
         e_dto = self.db.events_get_by_id(event_id)
         if e_dto is None:
             return None
-        event_class = self.db.event_classes_get_by_def(e_dto.definition)
-        if event_class is None:
+        event_class_dto = self.db.event_classes_get_by_def(e_dto.definition)
+        if event_class_dto is None:
             # Could not get event class!
             return None
-        return Event(e_dto, event_class)
+        desc = EventClass(event_class_dto).desc
+        return Event(e_dto, desc, event_class_dto.id)
 
     def get_event_by_id(self, event_id: str):
         e = self.get_event_obj_by_id(event_id)
@@ -495,6 +492,7 @@ class Oracle:
             if towait > 0.5:
                 print("Sleeping for", towait, "(", round(towait_unbound), ") ...")
             time.sleep(towait)
+
 
 class OracleApp:
     oracle: Oracle

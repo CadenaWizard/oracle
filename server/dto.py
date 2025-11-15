@@ -4,8 +4,9 @@
 
 
 class EventClassDto:
-    """An event class, typically for periodically repeating similar events."""
+    """An event class, for periodically repeating similar events."""
 
+    # - definition: The price source definition (a.k.a. symbol)
     # - event_string_template: Template for the string for a particular event.
     #   Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
     # - repeat_first_time: The time of the first event (unix time), e.g. 1704067200
