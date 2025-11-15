@@ -54,7 +54,7 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(o.public_key, self.public_key)
         self.assertEqual(o.db.event_classes_len(), 0)
         self.assertEqual(o.db.events_len(), 0)
-        self.assertEqual(o.get_oracle_info(), {'public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG'})
+        self.assertEqual(o.get_oracle_info()['main_public_key'], 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG')
 
     # Create Oracle and fill with event classes
     def test_load(self):

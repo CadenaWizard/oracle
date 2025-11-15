@@ -273,9 +273,11 @@ class Oracle:
             cnt += 1
         return e
 
+    # Note: public keys may be extended to several
     def get_oracle_info(self):
         return {
-            "public_key": self.public_key
+            "main_public_key": self.public_key,
+            "public_keys": [ self.public_key ],
         }
 
     def _get_oracle_status_time(self, current_time: float):

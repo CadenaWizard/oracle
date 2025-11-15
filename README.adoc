@@ -65,6 +65,10 @@ See demo web page:
 http://localhost:8000/demo/
 
 
+Run some tests:
+```
+python ./server/test_oracle.py
+```
 
 ## High-level API Description
 
@@ -87,5 +91,5 @@ http://localhost:8000/demo/
 
 ### Testing
 
-- Get forced premature test outcome for a future event (using dummy price)
+- [Removed] Get forced premature test outcome for a future event (using dummy price)
 
