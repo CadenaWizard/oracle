@@ -160,9 +160,6 @@ class EventClass:
     dto: EventClassDto
     desc: EventDescription
 
-    def get_sample_instance():
-        return EventClass.new("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
-
 
 class Nonces:
     # Generate nonces. Note: this is a bit slow due to key operations
@@ -292,14 +289,14 @@ class Oracle:
         now = time.time()
         return self._get_oracle_status_time(now)
 
-    def get_sample_instance(pubkey):
+    def get_default_instance(pubkey):
         o = Oracle(pubkey)
         # ev = EventClass.get_sample_instance()
-        start_time = 1704067200 + 17 * 30 * 86400
-        end_time = start_time + 18 * 30 * 86400
+        repeat_first_time = 1704067200 + 17 * 30 * 86400
+        repeat_last_time = repeat_first_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
-            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
-            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
+            EventClass.new("btcusd", "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time),
+            EventClass.new("btceur", "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time),
         ])
         return o
 
@@ -505,13 +502,13 @@ class OracleApp:
     def get_singleton_instance() -> Oracle:
         global _singleton_app_instance
         if not _singleton_app_instance:
-            _singleton_app_instance = OracleApp.create_sample_app_instance()
+            _singleton_app_instance = OracleApp.create_default_app_instance()
         return _singleton_app_instance
 
-    def create_sample_app_instance() -> Oracle:
+    def create_default_app_instance() -> Oracle:
         app = OracleApp()
         public_key = dlcplazacryptlib.get_public_key(0)
-        app.oracle = Oracle.get_sample_instance(public_key)
+        app.oracle = Oracle.get_default_instance(public_key)
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
             _thread.start_new(outcome_loop_thread, (app.oracle, ))

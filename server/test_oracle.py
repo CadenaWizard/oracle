@@ -33,11 +33,11 @@ class OracleTestCase(unittest.TestCase):
         self.public_key = initialize_cryptlib()
         repeat_time = 3600
         self.now = 1762988557
-        start_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
-        end_time = start_time + 37 * repeat_time
+        repeat_first_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
+        repeat_last_time = repeat_first_time + 37 * repeat_time
         self.event_classes = [
-            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, repeat_time, end_time),
-            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, repeat_time, end_time),
+            EventClass.new("btcusd", "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time),
+            EventClass.new("btceur", "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time),
         ]
 
     # Helper to create oracle instance
