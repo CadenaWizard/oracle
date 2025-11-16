@@ -1,4 +1,3 @@
-import dlcplazacryptlib
 from dto import DigitOutcome, Nonce, OutcomeDto
 from oracle import Event, EventClass, EventDescription, Nonces, Outcome
 from test_common import initialize_cryptlib
@@ -8,7 +7,7 @@ import unittest
 
 class EventDescriptionTestCase(unittest.TestCase):
     def test_properties(self):
-        e = EventDescription("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0, "signer_key1")
 
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 1)
@@ -17,32 +16,32 @@ class EventDescriptionTestCase(unittest.TestCase):
         self.assertEqual(e.event_string_template, "Outcome:{event_id}:{digit_index}:{digit_outcome}")
 
     def test_digit_pos(self):
-        e = EventDescription("BTCUSD", 6, 2)
+        e = EventDescription("BTCUSD", 6, 2, "signer_key1")
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 100)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_999_900)
 
-        e = EventDescription("BTCUSD", 5, 3)
+        e = EventDescription("BTCUSD", 5, 3, "signer_key1")
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 1000)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_999_000)
 
-        e = EventDescription("BTCUSD", 4, 4)
+        e = EventDescription("BTCUSD", 4, 4, "signer_key1")
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 10000)
         self.assertEqual(e.get_digit_high_pos(), 7)
         self.assertEqual(e.get_maximum_value(), 99_990_000)
 
-        e = EventDescription("BTCUSD", 6, 4)
+        e = EventDescription("BTCUSD", 6, 4, "signer_key1")
         self.assertEqual(e.get_minimum_value(), 0)
         self.assertEqual(e.get_unit(), 10000)
         self.assertEqual(e.get_digit_high_pos(), 9)
         self.assertEqual(e.get_maximum_value(), 9_999_990_000)
 
     def test_value_to_digits(self):
-        e = EventDescription("BTCUSD", 6, 2)
+        e = EventDescription("BTCUSD", 6, 2, "signer_key1")
         self.assertEqual(e.value_to_digits(1), [0, 0, 0, 0, 0, 0])
         self.assertEqual(e.value_to_digits(200), [0, 0, 0, 0, 0, 2])
         self.assertEqual(e.value_to_digits(200), [0, 0, 0, 0, 0, 2])
@@ -53,21 +52,21 @@ class EventDescriptionTestCase(unittest.TestCase):
         self.assertEqual(e.digits_to_value([1, 2, 3, 4, 5, 6]), 12_345_600)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2, 3, 5]), 123_500)
 
-        e = EventDescription("BTCUSD", 5, 3)
+        e = EventDescription("BTCUSD", 5, 3, "signer_key1")
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 1, 2, 3])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 1]), 1000)
         self.assertEqual(e.digits_to_value([1, 2, 3, 4, 5]), 12_345_000)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2, 3]), 123_000)
 
-        e = EventDescription("BTCUSD", 4, 4)
+        e = EventDescription("BTCUSD", 4, 4, "signer_key1")
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 1, 2])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 1]), 10000)
         self.assertEqual(e.digits_to_value([1, 2, 3, 4]), 12_340_000)
         self.assertEqual(e.digits_to_value([0, 0, 1, 2]), 120_000)
 
-        e = EventDescription("BTCUSD", 6, 4)
+        e = EventDescription("BTCUSD", 6, 4, "signer_key1")
         self.assertEqual(e.value_to_digits(123_456), [0, 0, 0, 0, 1, 2])
 
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 0, 1]), 10000)
@@ -75,14 +74,14 @@ class EventDescriptionTestCase(unittest.TestCase):
         self.assertEqual(e.digits_to_value([0, 0, 0, 0, 1, 2]), 120_000)
 
     def test_template(self):
-        e = EventDescription("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0, "signer_key1")
         event_id = "EID003"
         template = e.event_string_template_for_id(event_id)
         assert event_id in template, "EventID should be included in the template"
         self.assertEqual(template, "Outcome:EID003:{digit_index}:{digit_outcome}")
 
     def test_to_info(self):
-        e = EventDescription("BTCUSD", 8, 0)
+        e = EventDescription("BTCUSD", 8, 0, "signer_key1")
         info = e.to_info()
         expected = {
             'definition': 'BTCUSD',
@@ -92,14 +91,15 @@ class EventDescriptionTestCase(unittest.TestCase):
             'range_digits': 8,
             'range_max_value': 99999999,
             'range_min_value': 0,
-            'range_unit': 1
+            'range_unit': 1,
+            "signer_public_key": "signer_key1",
         }
         self.assertEqual(info, expected)
 
 
 class EventClassTestCase(unittest.TestCase):
     def event_obj(self):
-        return EventClass.new("btcusd", "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+        return EventClass.new("btcusd", 1762988557, "BTCUSD", 8, 0, 1704067200, 86400, 2019682800, "signer_key")
 
     def test_to_info(self):
         e = self.event_obj()
@@ -114,10 +114,12 @@ class EventClassTestCase(unittest.TestCase):
                 'range_digits': 8,
                 'range_max_value': 99999999,
                 'range_min_value': 0,
-                'range_unit': 1
+                'range_unit': 1,
+                "signer_public_key": "signer_key",
             },
             "repeat_first_time": 1704067200,
             "repeat_period": 86400,
+            "repeat_offset": 0,
             "repeat_last_time": 2019682800
         }
         self.assertEqual(info, expected)
@@ -134,12 +136,13 @@ class EventClassTestCase(unittest.TestCase):
         self.assertEqual(e.next_event_time(1704240001), 1704326400)
         self.assertEqual(e.next_event_time(1714736400), 1714780800)
         self.assertEqual(e.next_event_time(2019600000), 2019600000)
+        # Too early
+        self.assertEqual(e.next_event_time(1704060000), 1704067200)
         # Out of range
         self.assertEqual(e.next_event_time(2019600001), 0)
         self.assertEqual(e.next_event_time(2019682800), 0)
         # Out of range
         self.assertEqual(e.next_event_time(2020000000), 0)
-
 
     def test_next_event_id(self):
         e = self.event_obj()
@@ -159,6 +162,46 @@ class EventClassTestCase(unittest.TestCase):
         # Out of range
         self.assertEqual(e.next_event_id(2020000000), None)
 
+    def test_next_event_many(self):
+        e = self.event_obj()
+        # Early
+        for i in range(10):
+            t = 1704067200 + (i - 10) * 307.5
+            self.assertEqual(e.next_event_time(t), 1704067200)
+        # In between
+        for i in range(100):
+            t = 1704067200 + i * 16356.25
+            n = e.next_event_time(t)
+            self.assertTrue(n >= t)
+            self.assertTrue(n >= 1704067200)
+            self.assertTrue(n <= 2019682800)
+            self.assertTrue(n % 86400 == 0)
+        # Later
+        for i in range(10):
+            t = 2019600000 + 1 + i * 37.5
+            self.assertEqual(e.next_event_time(t), 0)
+
+    def test_next_event_with_offset(self):
+        offset = 13
+        start = 1704067200 + offset
+        end = 2019682800 + offset
+        e = EventClass.new("btcusd", 1762988557, "BTCUSD", 8, 0, start, 86400, end, "signer_key")
+        # Early
+        for i in range(10):
+            t = start + (i - 10) * 307.5
+            self.assertEqual(e.next_event_time(t), start)
+        # In between
+        for i in range(100):
+            t = start + i * 16356.25
+            n = e.next_event_time(t)
+            self.assertTrue(n >= t)
+            self.assertTrue(n >= start)
+            self.assertTrue(n <= end)
+            self.assertTrue(n % 86400 == offset)
+        # Later
+        for i in range(10):
+            t = end + 1 + i * 37.5
+            self.assertEqual(e.next_event_time(t), 0)
 
 class DigitOutcomeTestCase(unittest.TestCase):
     def test_to_info(self):
@@ -205,7 +248,7 @@ class OutcomeTestCase(unittest.TestCase):
     def test_create(self):
         event_id = "event123"
         digits = 7
-        desc = EventDescription("BTCUSD", digits, 0)
+        desc = EventDescription("BTCUSD", digits, 0, "signer_key1")
         nonces = Nonces.generate(event_id, digits)
         outcome_value = "88001.52"
         o = Outcome.create(outcome_value=outcome_value, event_id=event_id, event_desc=desc, created_time=2019600000, nonces=nonces)
@@ -234,19 +277,19 @@ class OutcomeTestCase(unittest.TestCase):
 
 class EventTestCase(unittest.TestCase):
     def test_new(self):
-        definition = "btcusd"
-        event_class = EventClass.new(definition, "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+        class_id = "btcusd1"
+        definition = "BTCUSD"
+        event_class = EventClass.new(class_id, 1762988557, definition, 8, 0, 1704067200, 86400, 2019682800, "signer_key")
         time = 1704067200 + 13 * 86400
-        id = definition + str(time)
+        id = definition.lower() + str(time)
         e = Event.new(
             time=time,
             event_class=event_class,
-            signer_public_key="0123",
         )
         self.assertEqual(e.dto.event_id, id)
-        self.assertEqual(e.event_class, definition)
+        self.assertEqual(e.event_class_id, class_id)
         self.assertEqual(e.dto.time, time)
-        self.assertEqual(e.dto.signer_public_key, "0123")
+        self.assertEqual(e.dto.signer_public_key, "signer_key")
         self.assertEqual(e.dto.string_template, "Outcome:btcusd1705190400:{digit_index}:{digit_outcome}")
 
 

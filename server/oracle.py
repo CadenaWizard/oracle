@@ -27,10 +27,11 @@ _outcome_loop_thread_started = False
 class EventDescription:
     """Common attributes of an event"""
 
-    def __init__(self, definition: str, digits: int, digit_low_pos: int):
+    def __init__(self, definition: str, digits: int, digit_low_pos: int, signer_public_key: str):
         self.definition = definition.upper()
         self.range_digits = digits
         self.range_digit_low_pos = digit_low_pos
+        self.signer_public_key = signer_public_key
         # Template for the string for a particular event.
         # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
         self.event_string_template = EVENT_STRING_TEMPLATE_DEFAULT
@@ -99,6 +100,7 @@ class EventDescription:
             "range_unit": self.get_unit(),
             "range_min_value": self.get_minimum_value(),
             "range_max_value": self.get_maximum_value(),
+            "signer_public_key": self.signer_public_key,
         }
 
 
@@ -107,19 +109,24 @@ class EventClass:
 
     def __init__(self, dto: EventClassDto):
         self.dto = dto
-        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
+        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos, signer_public_key=dto.signer_public_key)
 
-    def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+    # Note: repeat_offset is computed from repeat_first_time, later repeat_first_time should be retired
+    def new(id, create_time: int, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time, signer_public_key):
+        desc = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos, signer_public_key=signer_public_key)
+        repeat_offset = repeat_first_time % repeat_period
         dto = EventClassDto(
             id=id,
-            definition=descirption.definition,
-            digits=descirption.range_digits,
-            digit_low_pos=descirption.range_digit_low_pos,
-            event_string_template=descirption.event_string_template,
+            create_time=create_time,
+            definition=desc.definition,
+            digits=desc.range_digits,
+            digit_low_pos=desc.range_digit_low_pos,
+            event_string_template=desc.event_string_template,
             repeat_first_time=repeat_first_time,
             repeat_period=repeat_period,
-            repeat_last_time=repeat_last_time
+            repeat_offset=repeat_offset,
+            repeat_last_time=repeat_last_time,
+            signer_public_key=signer_public_key,
         )
         return EventClass(dto)
 
@@ -129,24 +136,34 @@ class EventClass:
             "desc": self.desc.to_info(),
             "repeat_first_time": self.dto.repeat_first_time,
             "repeat_period": self.dto.repeat_period,
+            "repeat_offset": self.dto.repeat_offset,
             "repeat_last_time": self.dto.repeat_last_time,
         }
 
     # Get the next future event time following the given time, 0 on error
     def next_event_time(self, abs_time):
-        # print("time", self.repeat_first_time, self.repeat_last_time, self.repeat_period, time)
+        # print(f"time {self.dto.repeat_first_time} {self.dto.repeat_last_time} {self.dto.repeat_period}  {abs_time}")
         if abs_time > self.dto.repeat_last_time:
             # Out of range
             return 0
-        time_adj = max(self.dto.repeat_first_time, abs_time)
-        period_count = int(math.floor((int(time_adj) - 1 - self.dto.repeat_first_time) / self.dto.repeat_period)) + 1
-        next_time = self.dto.repeat_first_time + period_count * self.dto.repeat_period
+        # round up (to nearest second)
+        time_adj = int(math.ceil(abs_time))
+        # if too early, take first possible
+        if time_adj < self.dto.repeat_first_time:
+            time_adj = self.dto.repeat_first_time
+        # take earlier round-period time (or same)
+        time_round_down = int((time_adj - self.dto.repeat_offset) / self.dto.repeat_period) * self.dto.repeat_period + self.dto.repeat_offset
+        next_time = time_round_down
+        if next_time < abs_time:
+            next_time += self.dto.repeat_period
         if next_time > self.dto.repeat_last_time:
             # Would be too late, out of range
             return 0
+
         assert(next_time >= abs_time)
         assert(next_time >= self.dto.repeat_first_time)
         assert(next_time <= self.dto.repeat_last_time)
+        assert(next_time % self.dto.repeat_period == self.dto.repeat_offset)
         return next_time
 
     # Get the ID of the next future event following the given time, 0 on error
@@ -156,12 +173,6 @@ class EventClass:
             return None
         next_event_id = Event.event_id_from_class_and_time(self, next_event_time)
         return next_event_id
-
-    dto: EventClassDto
-    desc: EventDescription
-
-    def get_sample_instance():
-        return EventClass.new("btcusd", "BTCUSD", 6, 0, 1704067200, 86400, 1751367600)
 
 
 class Nonces:
@@ -213,22 +224,22 @@ class Outcome:
 class Event:
     """An individual event"""
 
-    def __init__(self, dto: EventDto, event_class_dto: EventClassDto):
+    def __init__(self, dto: EventDto, desc: EventDescription, event_class_id: str):
         self.dto = dto
-        self.desc = EventClass(event_class_dto).desc
-        self.event_class = event_class_dto.id
-        # set later on-demand, on first use
+        self.desc = desc
+        self.event_class_id = event_class_id
 
-    def new(time, event_class: EventClass, signer_public_key: str):
+    def new(time, event_class: EventClass):
         assert(event_class is not None)
         event_id = Event.event_id_from_class_and_time(event_class, time)
+        class_id = event_class.dto.id
         string_template = event_class.desc.event_string_template_for_id(event_id)
-        event_dto = EventDto(event_id=event_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
-        return Event(event_dto, event_class.dto)
+        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=event_class.desc.signer_public_key)
+        return Event(event_dto, event_class.desc, class_id)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
-        return event_class.dto.id + str(time)
+        return event_class.dto.definition.lower() + str(time)
 
 
 class Oracle:
@@ -243,29 +254,32 @@ class Oracle:
         self.db.clear()
 
     def load_event_classes(self, event_classes):
-        self.clear()
         for ec in event_classes:
-            self.add_event_class(ec)
+            self.add_event_class_and_events(ec)
 
-    def add_event_class(self, ec):
-        print("Generating events.for event class '", ec.dto.id, "' ...")
-        event_dtos = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
-        self.db.event_classes_insert(ec.dto)
-        # Merge
-        self.db.events_append(event_dtos)
-        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, total {self.db.events_len()}")
+    def add_event_class_and_events(self, ec: EventClass):
+        print(f"Generating events.for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
+        inserted = self.db.event_classes_insert_if_missing(ec.dto)
+        if inserted == 0:
+            print(f"ERROR: Event class already present! id '{ec.dto.id}'")
+            return
+        event_dtos = self.generate_events_from_class(ec=ec)
+        added_event_cnt = self.db.events_append_if_missing(event_dtos)
+        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
 
     def print(self):
-        now = time.time()
+        now = round(datetime.now(UTC).timestamp())
         print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
-    def generate_events_from_class(self, ec: EventClass, signer_public_key: str) -> list[EventDto]:
+    def generate_events_from_class(self, ec: EventClass) -> list[EventDto]:
         e = {}
         t = ec.dto.repeat_first_time
         cnt = 0
+        assert(ec.dto.repeat_period != 0)
         while t <= ec.dto.repeat_last_time:
+            assert(t % ec.dto.repeat_period == ec.dto.repeat_offset)
             # create event
-            ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
+            ev = Event.new(event_class=ec, time=t)
             eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
             e[eid] = ev.dto
@@ -285,36 +299,47 @@ class Oracle:
         return {
             "future_event_count": future_count,
             "total_event_count": self.db.events_len(),
-            "current_time_utc": round(time.time(), 3),
+            "current_time_utc": round(current_time, 3)
         }
 
     def get_oracle_status(self):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         return self._get_oracle_status_time(now)
 
-    def get_sample_instance(pubkey):
+    # TODO: such operational data should be moved out of code, into config/DB
+    def get_default_instance(pubkey):
         o = Oracle(pubkey)
-        # ev = EventClass.get_sample_instance()
-        start_time = 1704067200 + 17 * 30 * 86400
-        end_time = start_time + 18 * 30 * 86400
-        o.load_event_classes(event_classes=[
-            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
-            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, 12 * 3600, end_time),
-        ])
+        now = round(datetime.now(UTC).timestamp())
+        default_public_key = "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"
+        repeat_first_time = 1704067200 + 17 * 30 * 86400
+        repeat_last_time = repeat_first_time + 18 * 30 * 86400
+        default_event_classes=[
+            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, default_public_key),
+            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, default_public_key),
+        ]
+        o.load_event_classes(default_event_classes)
         return o
 
     # Get event classes
     def get_event_classes(self):
-        return list(map(lambda ec_dto: EventClass(ec_dto).to_info(), self.db.event_classes_get_all()))
+        return list(map(lambda entry: EventClass(entry[1]).to_info(), self.db.event_classes_get_all().items()))
 
-    def get_event_class(self, definition: str) -> EventClass:
+    def get_event_class_latest_by_def(self, definition: str) -> EventClass:
         if not definition:
             return None
         def_upper = definition.upper()
-        dto = self.db.event_classes_get_by_def(def_upper)
+        dto = self.db.event_classes_get_latest_by_def(def_upper)
         if dto == None:
             return None
         return EventClass(dto)
+
+    # In case there are more, return all
+    def get_event_classes_by_def(self, definition: str) -> list[EventClass]:
+        if not definition:
+            return None
+        def_upper = definition.upper()
+        dtos = self.db.event_classes_get_all_by_def(def_upper)
+        return list(map(lambda dto: EventClass(dto), dtos))
 
     # Access nonces, Fill on-demand
     def get_nonces(self, event: Event) -> list[Nonce]:
@@ -356,8 +381,8 @@ class Oracle:
             "range_unit": event.desc.get_unit(),
             "range_min_value": event.desc.get_minimum_value(),
             "range_max_value": event.desc.get_maximum_value(),
-            "event_class": event.event_class,
-            "signer_public_key": event.dto.signer_public_key,
+            "event_class": event.event_class_id,
+            "signer_public_key": event.desc.signer_public_key,
             "string_template": event.dto.string_template,
             "has_outcome": has_outcome,
             # public nonces
@@ -376,11 +401,12 @@ class Oracle:
         e_dto = self.db.events_get_by_id(event_id)
         if e_dto is None:
             return None
-        event_class = self.db.event_classes_get_by_def(e_dto.definition)
-        if event_class is None:
+        event_class_dto = self.db.event_classes_get_by_id(e_dto.class_id)
+        if event_class_dto is None:
             # Could not get event class!
             return None
-        return Event(e_dto, event_class)
+        desc = EventClass(event_class_dto).desc
+        return Event(e_dto, desc, event_class_dto.id)
 
     def get_event_by_id(self, event_id: str):
         e = self.get_event_obj_by_id(event_id)
@@ -404,15 +430,21 @@ class Oracle:
             definition = definition.upper()
         return self.db.events_get_ids_filter(start_time, end_time, definition, 5000)
 
+    # Get the ID of the next event for a definition, after the given time
+    def _get_next_event_id_with_time(self, definition: str, abs_time: float) -> int:
+        # In case of multiple classes, try all of them, as we don't know whose time period matches the requested
+        event_classes = self.get_event_classes_by_def(definition)
+        for ec in event_classes:
+            next_event_id = ec.next_event_id(abs_time)
+            # print(f"next_event_id {next_event_id}")
+            if next_event_id is not None:
+                return next_event_id
+        # None found
+        return None
+
     # Get the next instance of an event class, after the given time
     def _get_next_event_with_time(self, definition: str, abs_time: float) -> dict:
-        # Compute the next event, try to find that
-        event_class = self.get_event_class(definition)
-        if not event_class:
-            return {}
-
-        next_event_id = event_class.next_event_id(abs_time)
-        # print("next_event_id", next_event_id)
+        next_event_id = self._get_next_event_id_with_time(definition, abs_time)
         if not next_event_id:
             return {}
 
@@ -425,7 +457,7 @@ class Oracle:
     # Get the next instance of an event class, after the given time
     def get_next_event(self, definition: str, period: int = 60) -> dict:
         period_cap = max(period, 60)
-        abs_time = math.floor(time.time()) + period_cap
+        abs_time = math.ceil(datetime.now(UTC).timestamp()) + period_cap
         return self._get_next_event_with_time(definition, abs_time)
 
     def get_price(self, symbol, time):
@@ -456,7 +488,7 @@ class Oracle:
         return cnt
 
     def create_past_outcomes(self) -> int:
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         print("Checking for past outcome generation ...", round(now))
         return self._create_past_outcomes_time(now)
 
@@ -470,7 +502,7 @@ class Oracle:
     #     # has no outcome yet
     #     symbol = e.desc.definition
     #     value = self.get_price(symbol, e.dto.time)
-    #     now = time.time()
+    #     now = datetime.now(UTC).timestamp()
     #     try:
     #         outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
     #         return self._get_event_info_with_outcome(e, outcome)
@@ -479,12 +511,12 @@ class Oracle:
     #         return {}
 
     def check_outcome_loop(self):
-        print("check_outcome_loop started", round(time.time()))
+        print("check_outcome_loop started", round(datetime.now(UTC).timestamp()))
         time.sleep(10)
         while True:
             self.create_past_outcomes()
             earliest = self.db.events_get_earliest_time_without_outcome()
-            now = time.time()
+            now = datetime.now(UTC).timestamp()
             # wait a bit for the next event, but limit wait to min/max values
             towait_unbound = (earliest - now) / 2 - 1
             towait = min(max(towait_unbound, 0.01), 300)
@@ -492,11 +524,12 @@ class Oracle:
                 print("Sleeping for", towait, "(", round(towait_unbound), ") ...")
             time.sleep(towait)
 
+
 class OracleApp:
     oracle: Oracle
 
     def __init__(self):
-        xpub = dlcplazacryptlib.init("./secret.sec", "password")
+        _xpub = dlcplazacryptlib.init("./secret.sec", "password")
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)
         self.oracle = Oracle(public_key)
@@ -505,13 +538,13 @@ class OracleApp:
     def get_singleton_instance() -> Oracle:
         global _singleton_app_instance
         if not _singleton_app_instance:
-            _singleton_app_instance = OracleApp.create_sample_app_instance()
+            _singleton_app_instance = OracleApp.create_default_app_instance()
         return _singleton_app_instance
 
-    def create_sample_app_instance() -> Oracle:
+    def create_default_app_instance() -> Oracle:
         app = OracleApp()
         public_key = dlcplazacryptlib.get_public_key(0)
-        app.oracle = Oracle.get_sample_instance(public_key)
+        app.oracle = Oracle.get_default_instance(public_key)
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
             _thread.start_new(outcome_loop_thread, (app.oracle, ))
@@ -521,26 +554,26 @@ class OracleApp:
         self.oracle
 
     def get_current_price(self, symbol: str):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         value = self.oracle.price_source.get_price_info(symbol, now).price
         return value
 
     def get_current_prices(self):
         res = {}
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             value = self.oracle.price_source.get_price_info(symbol, now).price
             res[symbol] = value
         return res
 
     def get_current_price_info(self, symbol: str):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         info = self.oracle.price_source.get_price_info(symbol, now)
         return info
 
     def get_current_price_infos(self):
         res = {}
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             info = self.oracle.price_source.get_price_info(symbol, now)
             res[symbol] = info

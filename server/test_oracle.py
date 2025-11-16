@@ -17,8 +17,7 @@ class PriceSourceMockConstant:
 
     def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
         symbol = symbol.upper()
-        if symbol not in self.symbol_rates:
-            return self.const_price
+        assert(symbol in self.symbol_rates)
         relative_rate = self.symbol_rates[symbol]
         rate = self.const_price * relative_rate
         return PriceInfo(rate, symbol, preferred_time, "MockConstant")
@@ -33,11 +32,12 @@ class OracleTestCase(unittest.TestCase):
         self.public_key = initialize_cryptlib()
         repeat_time = 3600
         self.now = 1762988557
-        start_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
-        end_time = start_time + 37 * repeat_time
+        self.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
+        repeat_first_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
+        repeat_last_time = repeat_first_time + 37 * repeat_time
         self.event_classes = [
-            EventClass.new("btcusd", "BTCUSD", 7, 0, start_time, repeat_time, end_time),
-            EventClass.new("btceur", "BTCEUR", 7, 0, start_time, repeat_time, end_time),
+            EventClass.new("btcusd01", self.now, "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
+            EventClass.new("btceur01", self.now, "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
         ]
 
     # Helper to create oracle instance
@@ -65,9 +65,8 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(o.db.events_len(), 2 * 38)
         # Status, current time is variable
         status = o._get_oracle_status_time(self.now)
-        status['current_time_utc'] = 123
         self.assertEqual(status, {
-            'current_time_utc': 123,
+            'current_time_utc': 1762988557,
             'future_event_count': 60,
             'total_event_count': 76,
         })
@@ -75,7 +74,7 @@ class OracleTestCase(unittest.TestCase):
         get_classes = o.get_event_classes()
         self.assertEqual(len(get_classes), 2)
         self.assertEqual(get_classes[0], {
-            'class_id': 'btcusd',
+            'class_id': 'btcusd01',
             'desc': {
                 'definition': 'BTCUSD',
                 'event_type': 'numeric',
@@ -85,15 +84,18 @@ class OracleTestCase(unittest.TestCase):
                 'range_max_value': 9999999,
                 'range_min_value': 0,
                 'range_unit': 1,
+                'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG',
             },
             'repeat_first_time': 1762963200,
-            'repeat_last_time': 1763096400,
             'repeat_period': 3600,
+            "repeat_offset": 0,
+            'repeat_last_time': 1763096400,
         })
 
-        self.assertEqual(o.get_event_class('MISSING_DEFINITION'), None)
-        self.assertEqual(o.get_event_class('btcusd').dto.definition, 'BTCUSD')
-        self.assertEqual(o.get_event_class('btcUSD').dto.definition, 'BTCUSD')
+        self.assertEqual(o.get_event_class_latest_by_def('MISSING_DEFINITION'), None)
+        self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.definition, 'BTCUSD')
+        self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.id, 'btcusd01')
+        self.assertEqual(o.get_event_class_latest_by_def('btcUSD').dto.definition, 'BTCUSD')
 
         # Nonexistent ID
         self.assertEqual(o.get_event_by_id('btceur1762970407'), {})
@@ -118,7 +120,7 @@ class OracleTestCase(unittest.TestCase):
             'range_unit': 1,
             'range_min_value': 0,
             'range_max_value': 9999999,
-            'event_class': 'btceur',
+            'event_class': 'btceur01',
             'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
             'has_outcome': False,
         })
@@ -160,11 +162,58 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
 
+    def test_next_event(self):
+        o = self.create_oracle()
+        o.load_event_classes(self.event_classes)
+        o.print()
+
+        definition = "BTCUSD"
+        time = self.now + 7 * 3600 + 60
+        next_event = o._get_next_event_with_time(definition, time)
+        self.assertEqual(next_event['event_id'], 'btcusd1763017200')
+        self.assertEqual(next_event['time_utc'], 1763017200)
+        self.assertEqual(next_event['definition'], definition)
+        self.assertEqual(next_event['event_class'], 'btcusd01')
+        self.assertEqual(next_event['has_outcome'], False)
+
+        # next-next
+        next_next_event = o._get_next_event_with_time(definition, next_event['time_utc'] + 1)
+        self.assertEqual(next_next_event['time_utc'], 1763020800)
+
+    # Next event with multiple event classes per definition
+    def test_with_multiple_event_classes(self):
+        o = self.create_oracle()
+        definition = "BTCUSD"
+        repeat_time = 3600
+        time1 = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
+        time2 = time1 + 20 * repeat_time
+        time3 = time2 + 20 * repeat_time
+        time4 = time3 + 20 * repeat_time
+        o.clear()
+        o.load_event_classes([
+            EventClass.new("class01", time1, definition, 7, 0, time1, repeat_time, time2 - 1, self.test_public_key),
+            EventClass.new("class02", time2, definition, 7, 0, time2, repeat_time, time3 - 1, self.test_public_key),
+            EventClass.new("class03", time3, definition, 7, 0, time3, repeat_time, time4 - 1, self.test_public_key),
+        ])
+        o.print()
+
+        self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.id, 'class03')
+        self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.definition, 'BTCUSD')
+
+        # choose one that falls into the middle one
+        time = self.now + 17 * 3600 + 60
+        next_event = o._get_next_event_with_time(definition, time)
+        self.assertEqual(next_event['event_id'], 'btcusd1763053200')
+        self.assertEqual(next_event['time_utc'], 1763053200)
+        self.assertEqual(next_event['definition'], definition)
+        self.assertEqual(next_event['event_class'], 'class02')
+        self.assertEqual(next_event['has_outcome'], False)
+
     def assert_event_has_outcome(self, event, expected_price):
         digits = event['range_digits']
         self.assertEqual(digits, 7)
-        event_class = EventDescription(event['definition'], digits, event['range_digit_low_pos'])
-        expected_price_digits = event_class.value_to_digits(expected_price)
+        event_desc = EventDescription(event['definition'], digits, event['range_digit_low_pos'], event['signer_public_key'])
+        expected_price_digits = event_desc.value_to_digits(expected_price)
         self.assertEqual(event['has_outcome'], True)
         self.assertAlmostEqual(float(event['outcome_value']), float(expected_price))
         self.assertEqual(len(event['digits']), 7)
