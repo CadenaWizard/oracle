@@ -27,10 +27,11 @@ _outcome_loop_thread_started = False
 class EventDescription:
     """Common attributes of an event"""
 
-    def __init__(self, definition: str, digits: int, digit_low_pos: int):
+    def __init__(self, definition: str, digits: int, digit_low_pos: int, signer_public_key: str):
         self.definition = definition.upper()
         self.range_digits = digits
         self.range_digit_low_pos = digit_low_pos
+        self.signer_public_key = signer_public_key
         # Template for the string for a particular event.
         # Example: "Outcome:{event_id}:{digit_index}:{digit_outcome}"
         self.event_string_template = EVENT_STRING_TEMPLATE_DEFAULT
@@ -99,6 +100,7 @@ class EventDescription:
             "range_unit": self.get_unit(),
             "range_min_value": self.get_minimum_value(),
             "range_max_value": self.get_maximum_value(),
+            "signer_public_key": self.signer_public_key,
         }
 
 
@@ -107,23 +109,24 @@ class EventClass:
 
     def __init__(self, dto: EventClassDto):
         self.dto = dto
-        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
+        self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos, signer_public_key=dto.signer_public_key)
 
     # Note: repeat_offset is computed from repeat_first_time, later repeat_first_time should be retired
-    def new(id, create_time: int, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
-        descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
+    def new(id, create_time: int, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time, signer_public_key):
+        desc = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos, signer_public_key=signer_public_key)
         repeat_offset = repeat_first_time % repeat_period
         dto = EventClassDto(
             id=id,
             create_time=create_time,
-            definition=descirption.definition,
-            digits=descirption.range_digits,
-            digit_low_pos=descirption.range_digit_low_pos,
-            event_string_template=descirption.event_string_template,
+            definition=desc.definition,
+            digits=desc.range_digits,
+            digit_low_pos=desc.range_digit_low_pos,
+            event_string_template=desc.event_string_template,
             repeat_first_time=repeat_first_time,
             repeat_period=repeat_period,
             repeat_offset=repeat_offset,
-            repeat_last_time=repeat_last_time
+            repeat_last_time=repeat_last_time,
+            signer_public_key=signer_public_key,
         )
         return EventClass(dto)
 
@@ -218,12 +221,12 @@ class Event:
         self.desc = desc
         self.event_class_id = event_class_id
 
-    def new(time, event_class: EventClass, signer_public_key: str):
+    def new(time, event_class: EventClass):
         assert(event_class is not None)
         event_id = Event.event_id_from_class_and_time(event_class, time)
         class_id = event_class.dto.id
         string_template = event_class.desc.event_string_template_for_id(event_id)
-        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
+        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=event_class.desc.signer_public_key)
         return Event(event_dto, event_class.desc, class_id)
 
     # Construct event ID of the form 'btceur1748991600'
@@ -245,11 +248,11 @@ class Oracle:
     def load_event_classes(self, event_classes):
         self.clear()
         for ec in event_classes:
-            self.add_event_class(ec)
+            self.add_event_class_and_events(ec)
 
-    def add_event_class(self, ec: EventClass):
-        print("Generating events.for event class '", ec.dto.id, "' ...")
-        event_dtos = self.generate_events_from_class(ec=ec, signer_public_key=self.public_key)
+    def add_event_class_and_events(self, ec: EventClass):
+        print(f"Generating events.for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
+        event_dtos = self.generate_events_from_class(ec=ec)
         self.db.event_classes_insert(ec.dto)
         # Merge
         self.db.events_append(event_dtos)
@@ -259,7 +262,7 @@ class Oracle:
         now = time.time()
         print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
-    def generate_events_from_class(self, ec: EventClass, signer_public_key: str) -> list[EventDto]:
+    def generate_events_from_class(self, ec: EventClass) -> list[EventDto]:
         e = {}
         t = ec.dto.repeat_first_time
         cnt = 0
@@ -267,7 +270,7 @@ class Oracle:
         while t <= ec.dto.repeat_last_time:
             assert(t % ec.dto.repeat_period == ec.dto.repeat_offset)
             # create event
-            ev = Event.new(event_class=ec, time=t, signer_public_key=signer_public_key)
+            ev = Event.new(event_class=ec, time=t)
             eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
             e[eid] = ev.dto
@@ -298,11 +301,12 @@ class Oracle:
     def get_default_instance(pubkey):
         o = Oracle(pubkey)
         now = round(datetime.now(UTC).timestamp())
+        default_public_key = "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"
         repeat_first_time = 1704067200 + 17 * 30 * 86400
         repeat_last_time = repeat_first_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
-            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time),
-            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time),
+            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, default_public_key),
+            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, default_public_key),
         ])
         return o
 
@@ -368,7 +372,7 @@ class Oracle:
             "range_min_value": event.desc.get_minimum_value(),
             "range_max_value": event.desc.get_maximum_value(),
             "event_class": event.event_class_id,
-            "signer_public_key": event.dto.signer_public_key,
+            "signer_public_key": event.desc.signer_public_key,
             "string_template": event.dto.string_template,
             "has_outcome": has_outcome,
             # public nonces
@@ -515,7 +519,7 @@ class OracleApp:
     oracle: Oracle
 
     def __init__(self):
-        xpub = dlcplazacryptlib.init("./secret.sec", "password")
+        _xpub = dlcplazacryptlib.init("./secret.sec", "password")
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)
         self.oracle = Oracle(public_key)

@@ -33,11 +33,12 @@ class OracleTestCase(unittest.TestCase):
         self.public_key = initialize_cryptlib()
         repeat_time = 3600
         self.now = 1762988557
+        self.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
         repeat_first_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
         repeat_last_time = repeat_first_time + 37 * repeat_time
         self.event_classes = [
-            EventClass.new("btcusd01", self.now, "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time),
-            EventClass.new("btceur01", self.now, "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time),
+            EventClass.new("btcusd01", self.now, "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
+            EventClass.new("btceur01", self.now, "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
         ]
 
     # Helper to create oracle instance
@@ -85,6 +86,7 @@ class OracleTestCase(unittest.TestCase):
                 'range_max_value': 9999999,
                 'range_min_value': 0,
                 'range_unit': 1,
+                'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG',
             },
             'repeat_first_time': 1762963200,
             'repeat_period': 3600,
@@ -190,9 +192,9 @@ class OracleTestCase(unittest.TestCase):
         time3 = time2 + 20 * repeat_time
         time4 = time3 + 20 * repeat_time
         o.load_event_classes([
-            EventClass.new("class01", time1, definition, 7, 0, time1, repeat_time, time2 - 1),
-            EventClass.new("class02", time2, definition, 7, 0, time2, repeat_time, time3 - 1),
-            EventClass.new("class03", time3, definition, 7, 0, time3, repeat_time, time4 - 1),
+            EventClass.new("class01", time1, definition, 7, 0, time1, repeat_time, time2 - 1, self.test_public_key),
+            EventClass.new("class02", time2, definition, 7, 0, time2, repeat_time, time3 - 1, self.test_public_key),
+            EventClass.new("class03", time3, definition, 7, 0, time3, repeat_time, time4 - 1, self.test_public_key),
         ])
         o.print()
 
@@ -211,8 +213,8 @@ class OracleTestCase(unittest.TestCase):
     def assert_event_has_outcome(self, event, expected_price):
         digits = event['range_digits']
         self.assertEqual(digits, 7)
-        event_class = EventDescription(event['definition'], digits, event['range_digit_low_pos'])
-        expected_price_digits = event_class.value_to_digits(expected_price)
+        event_desc = EventDescription(event['definition'], digits, event['range_digit_low_pos'], event['signer_public_key'])
+        expected_price_digits = event_desc.value_to_digits(expected_price)
         self.assertEqual(event['has_outcome'], True)
         self.assertAlmostEqual(float(event['outcome_value']), float(expected_price))
         self.assertEqual(len(event['digits']), 7)
