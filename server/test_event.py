@@ -1,4 +1,3 @@
-import dlcplazacryptlib
 from dto import DigitOutcome, Nonce, OutcomeDto
 from oracle import Event, EventClass, EventDescription, Nonces, Outcome
 from test_common import initialize_cryptlib
@@ -99,7 +98,7 @@ class EventDescriptionTestCase(unittest.TestCase):
 
 class EventClassTestCase(unittest.TestCase):
     def event_obj(self):
-        return EventClass.new("btcusd", "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+        return EventClass.new("btcusd", 1762988557, "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
 
     def test_to_info(self):
         e = self.event_obj()
@@ -235,17 +234,18 @@ class OutcomeTestCase(unittest.TestCase):
 
 class EventTestCase(unittest.TestCase):
     def test_new(self):
-        definition = "btcusd"
-        event_class = EventClass.new(definition, "BTCUSD", 8, 0, 1704067200, 86400, 2019682800)
+        class_id = "btcusd1"
+        definition = "BTCUSD"
+        event_class = EventClass.new(class_id, 1762988557, definition, 8, 0, 1704067200, 86400, 2019682800)
         time = 1704067200 + 13 * 86400
-        id = definition + str(time)
+        id = definition.lower() + str(time)
         e = Event.new(
             time=time,
             event_class=event_class,
             signer_public_key="0123",
         )
         self.assertEqual(e.dto.event_id, id)
-        self.assertEqual(e.event_class_id, definition)
+        self.assertEqual(e.event_class_id, class_id)
         self.assertEqual(e.dto.time, time)
         self.assertEqual(e.dto.signer_public_key, "0123")
         self.assertEqual(e.dto.string_template, "Outcome:btcusd1705190400:{digit_index}:{digit_outcome}")

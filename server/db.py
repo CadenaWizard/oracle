@@ -40,12 +40,32 @@ class EventStorage:
     def event_classes_get_all(self) -> list[EventClassDto]:
         return self._event_classes
 
-    def event_classes_get_by_def(self, definition: str) -> EventClassDto:
+    # By (internal) ID, should be unique
+    def event_classes_get_by_id(self, id: str) -> EventClassDto:
         for ec in self._event_classes:
-            if ec.definition == definition:
+            if ec.id == id:
                 return ec
         # Not found
         return None
+
+    # By definition. In case there are multiple, return latest (with highest create_time)
+    def event_classes_get_latest_by_def(self, definition: str) -> EventClassDto:
+        found = None
+        latest_time = 0
+        for ec in self._event_classes:
+            if ec.definition == definition:
+                if ec.create_time > latest_time:
+                    found = ec
+                    latest_time = ec.create_time
+        return found
+
+    # By definition. In case there are multiple, return all
+    def event_classes_get_all_by_def(self, definition: str) -> list[EventClassDto]:
+        r = []
+        for ec in self._event_classes:
+            if ec.definition == definition:
+                r.append(ec)
+        return r
 
     def nonces_insert_one(self, nonce: Nonce):
         eid = nonce.event_id

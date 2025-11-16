@@ -110,11 +110,12 @@ class EventClass:
         self.desc = EventDescription(definition=dto.definition, digits=dto.range_digits, digit_low_pos=dto.range_digit_low_pos)
 
     # Note: repeat_offset is computed from repeat_first_time, later repeat_first_time should be retired
-    def new(id, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
+    def new(id, create_time: int, definition, digits, digit_low_pos, repeat_first_time, repeat_period, repeat_last_time):
         descirption = EventDescription(definition=definition, digits=digits, digit_low_pos=digit_low_pos)
         repeat_offset = repeat_first_time % repeat_period
         dto = EventClassDto(
             id=id,
+            create_time=create_time,
             definition=descirption.definition,
             digits=descirption.range_digits,
             digit_low_pos=descirption.range_digit_low_pos,
@@ -138,7 +139,7 @@ class EventClass:
 
     # Get the next future event time following the given time, 0 on error
     def next_event_time(self, abs_time):
-        # print("time", self.repeat_first_time, self.repeat_last_time, self.repeat_period, time)
+        # print(f"time {self.dto.repeat_first_time} {self.dto.repeat_last_time} {self.dto.repeat_period}  {abs_time}")
         if abs_time > self.dto.repeat_last_time:
             # Out of range
             return 0
@@ -220,13 +221,14 @@ class Event:
     def new(time, event_class: EventClass, signer_public_key: str):
         assert(event_class is not None)
         event_id = Event.event_id_from_class_and_time(event_class, time)
+        class_id = event_class.dto.id
         string_template = event_class.desc.event_string_template_for_id(event_id)
-        event_dto = EventDto(event_id=event_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
-        return Event(event_dto, event_class.desc, event_class.dto.id)
+        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=signer_public_key)
+        return Event(event_dto, event_class.desc, class_id)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
-        return event_class.dto.id + str(time)
+        return event_class.dto.definition.lower() + str(time)
 
 
 class Oracle:
@@ -295,11 +297,12 @@ class Oracle:
     # TODO: such operational data should be moved out of code, into config/DB
     def get_default_instance(pubkey):
         o = Oracle(pubkey)
+        now = round(datetime.now(UTC).timestamp())
         repeat_first_time = 1704067200 + 17 * 30 * 86400
         repeat_last_time = repeat_first_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
-            EventClass.new("btcusd", "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time),
-            EventClass.new("btceur", "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time),
+            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time),
+            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time),
         ])
         return o
 
@@ -307,14 +310,22 @@ class Oracle:
     def get_event_classes(self):
         return list(map(lambda ec_dto: EventClass(ec_dto).to_info(), self.db.event_classes_get_all()))
 
-    def get_event_class(self, definition: str) -> EventClass:
+    def get_event_class_latest_by_def(self, definition: str) -> EventClass:
         if not definition:
             return None
         def_upper = definition.upper()
-        dto = self.db.event_classes_get_by_def(def_upper)
+        dto = self.db.event_classes_get_latest_by_def(def_upper)
         if dto == None:
             return None
         return EventClass(dto)
+
+    # In case there are more, return all
+    def get_event_classes_by_def(self, definition: str) -> list[EventClass]:
+        if not definition:
+            return None
+        def_upper = definition.upper()
+        dtos = self.db.event_classes_get_all_by_def(def_upper)
+        return list(map(lambda dto: EventClass(dto), dtos))
 
     # Access nonces, Fill on-demand
     def get_nonces(self, event: Event) -> list[Nonce]:
@@ -376,7 +387,7 @@ class Oracle:
         e_dto = self.db.events_get_by_id(event_id)
         if e_dto is None:
             return None
-        event_class_dto = self.db.event_classes_get_by_def(e_dto.definition)
+        event_class_dto = self.db.event_classes_get_by_id(e_dto.class_id)
         if event_class_dto is None:
             # Could not get event class!
             return None
@@ -405,15 +416,21 @@ class Oracle:
             definition = definition.upper()
         return self.db.events_get_ids_filter(start_time, end_time, definition, 5000)
 
+    # Get the ID of the next event for a definition, after the given time
+    def _get_next_event_id_with_time(self, definition: str, abs_time: float) -> int:
+        # In case of multiple classes, try all of them, as we don't know whose time period matches the requested
+        event_classes = self.get_event_classes_by_def(definition)
+        for ec in event_classes:
+            next_event_id = ec.next_event_id(abs_time)
+            print(f"next_event_id {next_event_id}")
+            if next_event_id is not None:
+                return next_event_id
+        # None found
+        return None
+
     # Get the next instance of an event class, after the given time
     def _get_next_event_with_time(self, definition: str, abs_time: float) -> dict:
-        # Compute the next event, try to find that
-        event_class = self.get_event_class(definition)
-        if not event_class:
-            return {}
-
-        next_event_id = event_class.next_event_id(abs_time)
-        # print("next_event_id", next_event_id)
+        next_event_id = self._get_next_event_id_with_time(definition, abs_time)
         if not next_event_id:
             return {}
 
