@@ -17,8 +17,7 @@ class PriceSourceMockConstant:
 
     def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
         symbol = symbol.upper()
-        if symbol not in self.symbol_rates:
-            return self.const_price
+        assert(symbol in self.symbol_rates)
         relative_rate = self.symbol_rates[symbol]
         rate = self.const_price * relative_rate
         return PriceInfo(rate, symbol, preferred_time, "MockConstant")

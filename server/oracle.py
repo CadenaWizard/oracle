@@ -259,7 +259,10 @@ class Oracle:
 
     def add_event_class_and_events(self, ec: EventClass):
         print(f"Generating events.for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
-        self.db.event_classes_insert(ec.dto)
+        inserted = self.db.event_classes_insert_if_missing(ec.dto)
+        if inserted == 0:
+            print(f"ERROR: Event class already present! id '{ec.dto.id}'")
+            return
         event_dtos = self.generate_events_from_class(ec=ec)
         added_event_cnt = self.db.events_append_if_missing(event_dtos)
         print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
@@ -319,7 +322,7 @@ class Oracle:
 
     # Get event classes
     def get_event_classes(self):
-        return list(map(lambda ec_dto: EventClass(ec_dto).to_info(), self.db.event_classes_get_all()))
+        return list(map(lambda entry: EventClass(entry[1]).to_info(), self.db.event_classes_get_all().items()))
 
     def get_event_class_latest_by_def(self, definition: str) -> EventClass:
         if not definition:
@@ -433,7 +436,7 @@ class Oracle:
         event_classes = self.get_event_classes_by_def(definition)
         for ec in event_classes:
             next_event_id = ec.next_event_id(abs_time)
-            print(f"next_event_id {next_event_id}")
+            # print(f"next_event_id {next_event_id}")
             if next_event_id is not None:
                 return next_event_id
         # None found

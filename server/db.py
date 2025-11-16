@@ -12,7 +12,8 @@ import sys
 # TODO No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
 class EventStorage:
     def __init__(self):
-        self._event_classes: list[EventClassDto] = []
+        # Event classes, key is the event class id
+        self._event_classes: dict[str, EventClassDto] = {}
         # Holds  nonces, key is event ID
         self._nonces: dict[str, list[Nonce]] = {}
         # Holds all the events, past and future. Key is the ID
@@ -23,7 +24,7 @@ class EventStorage:
         self._outcomes: dict[str, OutcomeDto] = {}
 
     def clear(self):
-        self._event_classes = []
+        self._event_classes = {}
         self._nonces = {}
         self._events = {}
         self._digitoutcomes = {}
@@ -32,20 +33,24 @@ class EventStorage:
     def print_stats(self):
         print(f"DB stats: evcl: {len(self._event_classes)}  nonce: {len(self._nonces)}  ev: {len(self._events)}  diou: {len(self._digitoutcomes)}  outcome: {len(self._outcomes)}")
 
-    def event_classes_insert(self, ec: EventClassDto):
-        self._event_classes.append(ec)
+    def event_classes_insert_if_missing(self, ec: EventClassDto) -> int:
+        ecid = ec.id
+        if ecid in self._event_classes:
+            # already present!
+            return 0
+        self._event_classes[ecid] = ec
+        return 1
 
     def event_classes_len(self) -> int:
         return len(self._event_classes)
 
-    def event_classes_get_all(self) -> list[EventClassDto]:
+    def event_classes_get_all(self) -> dict[str, EventClassDto]:
         return self._event_classes
 
     # By (internal) ID, should be unique
     def event_classes_get_by_id(self, id: str) -> EventClassDto:
-        for ec in self._event_classes:
-            if ec.id == id:
-                return ec
+        if id in self._event_classes:
+            return self._event_classes[id]
         # Not found
         return None
 
@@ -53,7 +58,7 @@ class EventStorage:
     def event_classes_get_latest_by_def(self, definition: str) -> EventClassDto:
         found = None
         latest_time = 0
-        for ec in self._event_classes:
+        for _id, ec in self._event_classes.items():
             if ec.definition == definition:
                 if ec.create_time > latest_time:
                     found = ec
@@ -63,7 +68,7 @@ class EventStorage:
     # By definition. In case there are multiple, return all
     def event_classes_get_all_by_def(self, definition: str) -> list[EventClassDto]:
         r = []
-        for ec in self._event_classes:
+        for _id, ec in self._event_classes.items():
             if ec.definition == definition:
                 r.append(ec)
         return r
