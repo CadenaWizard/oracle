@@ -5,7 +5,7 @@
 from price_common import PriceInfo
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
-import time
+from datetime import datetime, UTC
 
 # Can provide current price infos
 class PriceSource:
@@ -87,7 +87,7 @@ class PriceSource:
 class DummyPriceSource:
     def get_price_info(symbol, t: int) -> PriceInfo:
         if t == 0:
-            t = time.time()
+            t = datetime.now(UTC).timestamp()
         price = DummyPriceSource.get_price(t, symbol)
         return PriceInfo(price, symbol, t, "Dummy!")
 

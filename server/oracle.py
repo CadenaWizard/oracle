@@ -265,7 +265,7 @@ class Oracle:
         print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
 
     def print(self):
-        now = time.time()
+        now = round(datetime.now(UTC).timestamp())
         print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
     def generate_events_from_class(self, ec: EventClass) -> list[EventDto]:
@@ -296,11 +296,11 @@ class Oracle:
         return {
             "future_event_count": future_count,
             "total_event_count": self.db.events_len(),
-            "current_time_utc": round(time.time(), 3),
+            "current_time_utc": round(current_time, 3)
         }
 
     def get_oracle_status(self):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         return self._get_oracle_status_time(now)
 
     # TODO: such operational data should be moved out of code, into config/DB
@@ -454,7 +454,7 @@ class Oracle:
     # Get the next instance of an event class, after the given time
     def get_next_event(self, definition: str, period: int = 60) -> dict:
         period_cap = max(period, 60)
-        abs_time = math.floor(time.time()) + period_cap
+        abs_time = math.ceil(datetime.now(UTC).timestamp()) + period_cap
         return self._get_next_event_with_time(definition, abs_time)
 
     def get_price(self, symbol, time):
@@ -485,7 +485,7 @@ class Oracle:
         return cnt
 
     def create_past_outcomes(self) -> int:
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         print("Checking for past outcome generation ...", round(now))
         return self._create_past_outcomes_time(now)
 
@@ -499,7 +499,7 @@ class Oracle:
     #     # has no outcome yet
     #     symbol = e.desc.definition
     #     value = self.get_price(symbol, e.dto.time)
-    #     now = time.time()
+    #     now = datetime.now(UTC).timestamp()
     #     try:
     #         outcome = Outcome.create(str(value), e.dto.event_id, e.desc, now, self.get_nonces(e))
     #         return self._get_event_info_with_outcome(e, outcome)
@@ -508,12 +508,12 @@ class Oracle:
     #         return {}
 
     def check_outcome_loop(self):
-        print("check_outcome_loop started", round(time.time()))
+        print("check_outcome_loop started", round(datetime.now(UTC).timestamp()))
         time.sleep(10)
         while True:
             self.create_past_outcomes()
             earliest = self.db.events_get_earliest_time_without_outcome()
-            now = time.time()
+            now = datetime.now(UTC).timestamp()
             # wait a bit for the next event, but limit wait to min/max values
             towait_unbound = (earliest - now) / 2 - 1
             towait = min(max(towait_unbound, 0.01), 300)
@@ -551,26 +551,26 @@ class OracleApp:
         self.oracle
 
     def get_current_price(self, symbol: str):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         value = self.oracle.price_source.get_price_info(symbol, now).price
         return value
 
     def get_current_prices(self):
         res = {}
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             value = self.oracle.price_source.get_price_info(symbol, now).price
             res[symbol] = value
         return res
 
     def get_current_price_info(self, symbol: str):
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         info = self.oracle.price_source.get_price_info(symbol, now)
         return info
 
     def get_current_price_infos(self):
         res = {}
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             info = self.oracle.price_source.get_price_info(symbol, now)
             res[symbol] = info

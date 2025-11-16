@@ -66,9 +66,8 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(o.db.events_len(), 2 * 38)
         # Status, current time is variable
         status = o._get_oracle_status_time(self.now)
-        status['current_time_utc'] = 123
         self.assertEqual(status, {
-            'current_time_utc': 123,
+            'current_time_utc': 1762988557,
             'future_event_count': 60,
             'total_event_count': 76,
         })
