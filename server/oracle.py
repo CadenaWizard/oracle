@@ -146,16 +146,24 @@ class EventClass:
         if abs_time > self.dto.repeat_last_time:
             # Out of range
             return 0
-        time_adj = max(self.dto.repeat_first_time, abs_time)
-        period_count = int(math.floor((int(time_adj) - 1 - self.dto.repeat_first_time) / self.dto.repeat_period)) + 1
-        next_time = self.dto.repeat_first_time + period_count * self.dto.repeat_period
+        # round up (to nearest second)
+        time_adj = int(math.ceil(abs_time))
+        # if too early, take first possible
+        if time_adj < self.dto.repeat_first_time:
+            time_adj = self.dto.repeat_first_time
+        # take earlier round-period time (or same)
+        time_round_down = int((time_adj - self.dto.repeat_offset) / self.dto.repeat_period) * self.dto.repeat_period + self.dto.repeat_offset
+        next_time = time_round_down
+        if next_time < abs_time:
+            next_time += self.dto.repeat_period
         if next_time > self.dto.repeat_last_time:
             # Would be too late, out of range
             return 0
+
         assert(next_time >= abs_time)
         assert(next_time >= self.dto.repeat_first_time)
         assert(next_time <= self.dto.repeat_last_time)
-        assert(next_time % self.dto.repeat_period <= self.dto.repeat_offset)
+        assert(next_time % self.dto.repeat_period == self.dto.repeat_offset)
         return next_time
 
     # Get the ID of the next future event following the given time, 0 on error

@@ -136,12 +136,13 @@ class EventClassTestCase(unittest.TestCase):
         self.assertEqual(e.next_event_time(1704240001), 1704326400)
         self.assertEqual(e.next_event_time(1714736400), 1714780800)
         self.assertEqual(e.next_event_time(2019600000), 2019600000)
+        # Too early
+        self.assertEqual(e.next_event_time(1704060000), 1704067200)
         # Out of range
         self.assertEqual(e.next_event_time(2019600001), 0)
         self.assertEqual(e.next_event_time(2019682800), 0)
         # Out of range
         self.assertEqual(e.next_event_time(2020000000), 0)
-
 
     def test_next_event_id(self):
         e = self.event_obj()
@@ -161,6 +162,46 @@ class EventClassTestCase(unittest.TestCase):
         # Out of range
         self.assertEqual(e.next_event_id(2020000000), None)
 
+    def test_next_event_many(self):
+        e = self.event_obj()
+        # Early
+        for i in range(10):
+            t = 1704067200 + (i - 10) * 307.5
+            self.assertEqual(e.next_event_time(t), 1704067200)
+        # In between
+        for i in range(100):
+            t = 1704067200 + i * 16356.25
+            n = e.next_event_time(t)
+            self.assertTrue(n >= t)
+            self.assertTrue(n >= 1704067200)
+            self.assertTrue(n <= 2019682800)
+            self.assertTrue(n % 86400 == 0)
+        # Later
+        for i in range(10):
+            t = 2019600000 + 1 + i * 37.5
+            self.assertEqual(e.next_event_time(t), 0)
+
+    def test_next_event_with_offset(self):
+        offset = 13
+        start = 1704067200 + offset
+        end = 2019682800 + offset
+        e = EventClass.new("btcusd", 1762988557, "BTCUSD", 8, 0, start, 86400, end, "signer_key")
+        # Early
+        for i in range(10):
+            t = start + (i - 10) * 307.5
+            self.assertEqual(e.next_event_time(t), start)
+        # In between
+        for i in range(100):
+            t = start + i * 16356.25
+            n = e.next_event_time(t)
+            self.assertTrue(n >= t)
+            self.assertTrue(n >= start)
+            self.assertTrue(n <= end)
+            self.assertTrue(n % 86400 == offset)
+        # Later
+        for i in range(10):
+            t = end + 1 + i * 37.5
+            self.assertEqual(e.next_event_time(t), 0)
 
 class DigitOutcomeTestCase(unittest.TestCase):
     def test_to_info(self):
