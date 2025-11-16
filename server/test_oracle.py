@@ -191,6 +191,7 @@ class OracleTestCase(unittest.TestCase):
         time2 = time1 + 20 * repeat_time
         time3 = time2 + 20 * repeat_time
         time4 = time3 + 20 * repeat_time
+        o.clear()
         o.load_event_classes([
             EventClass.new("class01", time1, definition, 7, 0, time1, repeat_time, time2 - 1, self.test_public_key),
             EventClass.new("class02", time2, definition, 7, 0, time2, repeat_time, time3 - 1, self.test_public_key),

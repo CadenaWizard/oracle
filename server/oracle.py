@@ -246,17 +246,15 @@ class Oracle:
         self.db.clear()
 
     def load_event_classes(self, event_classes):
-        self.clear()
         for ec in event_classes:
             self.add_event_class_and_events(ec)
 
     def add_event_class_and_events(self, ec: EventClass):
         print(f"Generating events.for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
-        event_dtos = self.generate_events_from_class(ec=ec)
         self.db.event_classes_insert(ec.dto)
-        # Merge
-        self.db.events_append(event_dtos)
-        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, total {self.db.events_len()}")
+        event_dtos = self.generate_events_from_class(ec=ec)
+        added_event_cnt = self.db.events_append_if_missing(event_dtos)
+        print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
 
     def print(self):
         now = time.time()
@@ -304,10 +302,11 @@ class Oracle:
         default_public_key = "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"
         repeat_first_time = 1704067200 + 17 * 30 * 86400
         repeat_last_time = repeat_first_time + 18 * 30 * 86400
-        o.load_event_classes(event_classes=[
+        default_event_classes=[
             EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, default_public_key),
             EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, default_public_key),
-        ])
+        ]
+        o.load_event_classes(default_event_classes)
         return o
 
     # Get event classes

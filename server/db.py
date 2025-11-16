@@ -11,15 +11,16 @@ import sys
 # TODO Store publickeys separately
 # TODO No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
 class EventStorage:
-    _event_classes: list[EventClassDto] = []
-    # Holds  nonces, key is event ID
-    _nonces: dict[str, list[Nonce]] = {}
-    # Holds all the events, past and future. Key is the ID
-    _events: dict[str, EventDto] = {}
-    # Holds digit outcomes, key is event ID
-    _digitoutcomes: dict[str, list[DigitOutcome]] = {}
-    # Holds outcomes, key is event ID
-    _outcomes: dict[str, OutcomeDto] = {}
+    def __init__(self):
+        self._event_classes: list[EventClassDto] = []
+        # Holds  nonces, key is event ID
+        self._nonces: dict[str, list[Nonce]] = {}
+        # Holds all the events, past and future. Key is the ID
+        self._events: dict[str, EventDto] = {}
+        # Holds digit outcomes, key is event ID
+        self._digitoutcomes: dict[str, list[DigitOutcome]] = {}
+        # Holds outcomes, key is event ID
+        self._outcomes: dict[str, OutcomeDto] = {}
 
     def clear(self):
         self._event_classes = []
@@ -82,8 +83,19 @@ class EventStorage:
             return []
         return self._nonces[event_id]
 
-    def events_append(self, more_events: dict[str, EventDto]):
-        self._events = {**self._events, **more_events}
+    def events_insert_if_missing(self, e: EventDto) -> int:
+        eid = e.event_id
+        if eid in self._events:
+            # Already present
+            return 0
+        self._events[eid] = e
+        return 1
+
+    def events_append_if_missing(self, more_events: dict[str, EventDto]) -> int:
+        added_cnt = 0
+        for [_eid, e] in more_events.items():
+            added_cnt += self.events_insert_if_missing(e)
+        return added_cnt
 
     def events_len(self) -> int:
         return len(self._events)
