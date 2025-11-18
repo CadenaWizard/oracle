@@ -23,44 +23,48 @@ class PriceSourceMockConstant:
         return PriceInfo(rate, symbol, preferred_time, "MockConstant")
 
 
-class OracleTestCase(unittest.TestCase):
+class OracleTestClass(unittest.TestCase):
     public_key = "?"
     event_classes = []
     now = 0
 
-    def setUp(self):
-        self.public_key = initialize_cryptlib()
+    @classmethod
+    def setUpClass(cls):
+        print("setUpClass")
+
+        cls.public_key = initialize_cryptlib()
         repeat_time = 3600
-        self.now = 1762988557
-        self.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
-        repeat_first_time = int(math.floor(self.now / repeat_time)) * repeat_time - 7 * repeat_time
+        cls.now = 1762988557
+        cls.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
+        repeat_first_time = int(math.floor(cls.now / repeat_time)) * repeat_time - 7 * repeat_time
         repeat_last_time = repeat_first_time + 37 * repeat_time
-        self.event_classes = [
-            EventClass.new("btcusd01", self.now, "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
-            EventClass.new("btceur01", self.now, "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time, self.test_public_key),
+        cls.event_classes = [
+            EventClass.new("btcusd01", cls.now, "BTCUSD", 7, 0, repeat_first_time, repeat_time, repeat_last_time, cls.test_public_key),
+            EventClass.new("btceur01", cls.now, "BTCEUR", 7, 0, repeat_first_time, repeat_time, repeat_last_time, cls.test_public_key),
         ]
 
     # Helper to create oracle instance
     def create_oracle(self):
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, price_mock)
+        o = Oracle(self.public_key, price_source=price_mock)
         return o
 
     # Create Oracle
     def test_init(self):
         o = self.create_oracle()
-        o.print()
+        o.print_stats()
         self.assertEqual(o.public_key, self.public_key)
         self.assertEqual(o.db.event_classes_len(), 0)
         self.assertEqual(o.db.events_len(), 0)
         self.assertEqual(o.get_oracle_info()['main_public_key'], 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG')
+        o.close()
 
     # Create Oracle and fill with event classes
     def test_load(self):
         o = self.create_oracle()
         o.load_event_classes(self.event_classes)
-        o.print()
+        o.print_stats()
         self.assertEqual(o.db.event_classes_len(), 2)
         self.assertEqual(o.db.events_len(), 2 * 38)
         # Status, current time is variable
@@ -70,6 +74,7 @@ class OracleTestCase(unittest.TestCase):
             'future_event_count': 60,
             'total_event_count': 76,
         })
+        o.close()
 
         get_classes = o.get_event_classes()
         self.assertEqual(len(get_classes), 2)
@@ -124,11 +129,12 @@ class OracleTestCase(unittest.TestCase):
             'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
             'has_outcome': False,
         })
+        o.close()
 
     def test_filter(self):
         o = self.create_oracle()
         o.load_event_classes(self.event_classes)
-        o.print()
+        o.print_stats()
 
         filtered = o.get_event_ids_filter(self.now - 20000, self.now + 20000, 'btcusd')
         self.assertEqual(len(filtered), 11)
@@ -140,8 +146,10 @@ class OracleTestCase(unittest.TestCase):
         filtered = o.get_event_ids_filter(self.now - 20000, self.now + 20000, None)
         self.assertEqual(len(filtered), 22)
         self.assertEqual(filtered[0], 'btcusd1762970400')
-        self.assertEqual(filtered[10], 'btcusd1763006400')
-        self.assertEqual(filtered[11], 'btceur1762970400')
+        # self.assertEqual(filtered[10], 'btcusd1763006400')
+        # self.assertEqual(filtered[11], 'btceur1762970400')
+        self.assertEqual(filtered[10], 'btcusd1762988400')
+        self.assertEqual(filtered[11], 'btceur1762988400')
         self.assertEqual(filtered[len(filtered)-1], 'btceur1763006400')
 
         # No end time given
@@ -161,11 +169,12 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(len(filtered[0]['nonces']), 7)
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
+        o.close()
 
     def test_next_event(self):
         o = self.create_oracle()
         o.load_event_classes(self.event_classes)
-        o.print()
+        o.print_stats()
 
         definition = "BTCUSD"
         time = self.now + 7 * 3600 + 60
@@ -179,6 +188,7 @@ class OracleTestCase(unittest.TestCase):
         # next-next
         next_next_event = o._get_next_event_with_time(definition, next_event['time_utc'] + 1)
         self.assertEqual(next_next_event['time_utc'], 1763020800)
+        o.close()
 
     # Next event with multiple event classes per definition
     def test_with_multiple_event_classes(self):
@@ -189,13 +199,13 @@ class OracleTestCase(unittest.TestCase):
         time2 = time1 + 20 * repeat_time
         time3 = time2 + 20 * repeat_time
         time4 = time3 + 20 * repeat_time
-        o.clear()
+        o.delete_all_contents()
         o.load_event_classes([
             EventClass.new("class01", time1, definition, 7, 0, time1, repeat_time, time2 - 1, self.test_public_key),
             EventClass.new("class02", time2, definition, 7, 0, time2, repeat_time, time3 - 1, self.test_public_key),
             EventClass.new("class03", time3, definition, 7, 0, time3, repeat_time, time4 - 1, self.test_public_key),
         ])
-        o.print()
+        o.print_stats()
 
         self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.id, 'class03')
         self.assertEqual(o.get_event_class_latest_by_def('btcusd').dto.definition, 'BTCUSD')
@@ -208,6 +218,8 @@ class OracleTestCase(unittest.TestCase):
         self.assertEqual(next_event['definition'], definition)
         self.assertEqual(next_event['event_class'], 'class02')
         self.assertEqual(next_event['has_outcome'], False)
+
+        o.close()
 
     def assert_event_has_outcome(self, event, expected_price):
         digits = event['range_digits']
@@ -226,7 +238,7 @@ class OracleTestCase(unittest.TestCase):
     def test_outcome(self):
         o = self.create_oracle()
         o.load_event_classes(self.event_classes)
-        o.print()
+        o.print_stats()
 
         event_id = 'btceur1762970400'
         e1 = o.get_event_by_id(event_id)
@@ -240,6 +252,8 @@ class OracleTestCase(unittest.TestCase):
         # get the event, should have outcome
         e2 = o.get_event_by_id(event_id)
         self.assert_event_has_outcome(e2, 88888.5)
+
+        o.close()
 
 
 if __name__ == "__main__":

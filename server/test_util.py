@@ -3,7 +3,7 @@ from util import HexValue, power_of_ten
 import unittest
 
 
-class UtilTestCase(unittest.TestCase):
+class UtilTestClass(unittest.TestCase):
     def test_power_of_10(self):
         # check all values 0--10
         expected = 1

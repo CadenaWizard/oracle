@@ -4,9 +4,8 @@
 
 from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
 
-import sys
 
-
+# Persistence in memory
 # TODO store in DB
 # TODO Store publickeys separately
 # TODO No on-demand Nonce creation, no deterministic nonces. Filled at creation, later used from DB
@@ -23,7 +22,13 @@ class EventStorage:
         # Holds outcomes, key is event ID
         self._outcomes: dict[str, OutcomeDto] = {}
 
-    def clear(self):
+
+    def close(self):
+        # do nothing
+        return
+
+    def delete_all_contents(self):
+        print(f"WARNING: Storage: Deleting all contents!")
         self._event_classes = {}
         self._nonces = {}
         self._events = {}
@@ -44,8 +49,8 @@ class EventStorage:
     def event_classes_len(self) -> int:
         return len(self._event_classes)
 
-    def event_classes_get_all(self) -> dict[str, EventClassDto]:
-        return self._event_classes
+    def event_classes_get_all(self) -> list[EventClassDto]:
+        return list(map(lambda entry: entry[1], self._event_classes.items()))
 
     # By (internal) ID, should be unique
     def event_classes_get_by_id(self, id: str) -> EventClassDto:
@@ -112,12 +117,15 @@ class EventStorage:
 
     # Get the time of the earliest event without outcome
     def events_get_earliest_time_without_outcome(self) -> int:
-        t = sys.maxsize - 10
+        t = 0
         for eid, e in self._events.items():
             if self.outcomes_exists(eid):
                 continue
-            if e.time < t:
+            if t == 0:
                 t = e.time
+            else:
+                if e.time < t:
+                    t = e.time
         return t
 
     # Get (the ID of) events in the past with no outcome
@@ -141,8 +149,8 @@ class EventStorage:
         return c
 
     def events_get_ids_filter(self, start_time: int, end_time: int, definition: str | None, limit: int) -> list[str]:
-        r = []
-        for eid, e in self._events.items   ():
+        events = []
+        for _eid, e in self._events.items   ():
             if start_time != 0:
                 if e.time < start_time:
                     continue
@@ -152,10 +160,12 @@ class EventStorage:
             if definition is not None:
                 if e.definition != definition:
                     continue
-            r.append(eid)
-            if len(r) >= limit:
+            events.append(e)
+            if len(events) >= limit:
                 break
-        return r
+        # sort by time
+        e_sorted = sorted(events, key=lambda e: e.time)
+        return list(map(lambda e: e.event_id, e_sorted))
 
     def digitoutcomes_insert(self, event_id: str, digit_outcome_list: list[DigitOutcome]):
         self._digitoutcomes[event_id] = digit_outcome_list

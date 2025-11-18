@@ -5,7 +5,7 @@ from test_common import initialize_cryptlib
 import unittest
 
 
-class EventDescriptionTestCase(unittest.TestCase):
+class EventDescriptionTestClass(unittest.TestCase):
     def test_properties(self):
         e = EventDescription("BTCUSD", 8, 0, "signer_key1")
 
