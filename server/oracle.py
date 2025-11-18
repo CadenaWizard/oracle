@@ -244,9 +244,11 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key, price_source = None):
-        if price_source is None:
+    def __init__(self, public_key, price_source_override = None):
+        if price_source_override is None:
             price_source = PriceSource()
+        else:
+            price_source = price_source_override
         self.db = EventStorage()
         self.public_key = public_key
         self.price_source = price_source
