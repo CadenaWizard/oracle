@@ -45,7 +45,7 @@ Start the server:
 ```
 (or: )
 ```
-fastapi dev server/main.py
+fastapi run server/main.py
 ```
 
 See status

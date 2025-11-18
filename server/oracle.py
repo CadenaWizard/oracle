@@ -11,6 +11,7 @@ from util import power_of_ten
 from datetime import datetime, UTC
 import math
 import random
+import sys
 import _thread
 import time
 
@@ -18,7 +19,7 @@ import time
 EVENT_STRING_TEMPLATE_DEFAULT = "Outcome:{event_id}:{digit_index}:{digit_outcome}"
 
 
-# Singleton app instance, created on demand, in _get_singleton_instance()
+# Singleton app instance, created on demand, in get_singleton_instance()
 _singleton_app_instance = None
 
 _outcome_loop_thread_started = False
@@ -250,15 +251,18 @@ class Oracle:
         self.public_key = public_key
         self.price_source = price_source
 
-    def clear(self):
-        self.db.clear()
+    def close(self):
+        self.db.close()
+
+    def delete_all_contents(self):
+        self.db.delete_all_contents()
 
     def load_event_classes(self, event_classes):
         for ec in event_classes:
             self.add_event_class_and_events(ec)
 
     def add_event_class_and_events(self, ec: EventClass):
-        print(f"Generating events.for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
+        print(f"Generating events for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
         inserted = self.db.event_classes_insert_if_missing(ec.dto)
         if inserted == 0:
             print(f"ERROR: Event class already present! id '{ec.dto.id}'")
@@ -266,10 +270,12 @@ class Oracle:
         event_dtos = self.generate_events_from_class(ec=ec)
         added_event_cnt = self.db.events_append_if_missing(event_dtos)
         print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
+        self.db.print_stats()
 
-    def print(self):
+    def print_stats(self):
+        self.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
-        print(f"Oracle, with {self.db.events_count_future(now)} events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
+        print(f"Oracle, with {self.db.events_count_future(now)} future events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
     def generate_events_from_class(self, ec: EventClass) -> list[EventDto]:
         e = {}
@@ -307,8 +313,10 @@ class Oracle:
         return self._get_oracle_status_time(now)
 
     # TODO: such operational data should be moved out of code, into config/DB
-    def get_default_instance(pubkey):
-        o = Oracle(pubkey)
+    def get_default_instance(public_key):
+        o = Oracle(public_key=public_key)
+        o.db.delete_all_contents()
+        o.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
         default_public_key = "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"
         repeat_first_time = 1704067200 + 17 * 30 * 86400
@@ -322,7 +330,7 @@ class Oracle:
 
     # Get event classes
     def get_event_classes(self):
-        return list(map(lambda entry: EventClass(entry[1]).to_info(), self.db.event_classes_get_all().items()))
+        return list(map(lambda ec: EventClass(ec).to_info(), self.db.event_classes_get_all()))
 
     def get_event_class_latest_by_def(self, definition: str) -> EventClass:
         if not definition:
@@ -351,7 +359,9 @@ class Oracle:
         # No nonces, generate now
         nonces = Nonces.generate(eid, event.desc.range_digits)
         self.db.nonces_insert(nonces)
-        return self.db.nonces_get(eid)
+        nonces = self.db.nonces_get(eid)
+        assert(len(nonces) > 0)
+        return nonces
 
     def get_outcome(self, event_id: str) -> Outcome | None:
         # get outcome (if any)
@@ -515,8 +525,11 @@ class Oracle:
         time.sleep(10)
         while True:
             self.create_past_outcomes()
-            earliest = self.db.events_get_earliest_time_without_outcome()
             now = datetime.now(UTC).timestamp()
+            earliest = self.db.events_get_earliest_time_without_outcome()
+            # if there is no event without outcome, wait max
+            if earliest == 0 or earliest < now:
+                earliest = sys.maxsize - 10
             # wait a bit for the next event, but limit wait to min/max values
             towait_unbound = (earliest - now) / 2 - 1
             towait = min(max(towait_unbound, 0.01), 300)
@@ -532,7 +545,7 @@ class OracleApp:
         _xpub = dlcplazacryptlib.init("./secret.sec", "password")
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)
-        self.oracle = Oracle(public_key)
+        self.oracle = Oracle.get_default_instance(public_key=public_key)
         random.seed()
 
     def get_singleton_instance() -> Oracle:
@@ -543,8 +556,6 @@ class OracleApp:
 
     def create_default_app_instance() -> Oracle:
         app = OracleApp()
-        public_key = dlcplazacryptlib.get_public_key(0)
-        app.oracle = Oracle.get_default_instance(public_key)
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
             _thread.start_new(outcome_loop_thread, (app.oracle, ))
