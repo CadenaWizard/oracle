@@ -67,10 +67,10 @@ class OutcomeDto:
 
 
 class EventDto:
-    def __init__(self, event_id: str, class_id: str, definition: str, time: int, string_template: str, signer_public_key: str):
+    def __init__(self, event_id: str, class_id: str, definition: str, time: int, string_template: str, signer_public_key_id: int):
         self.event_id = event_id
         self.class_id = class_id
         self.definition = definition
         self.time = time
         self.string_template = string_template
-        self.signer_public_key = signer_public_key
+        self.signer_public_key_id = signer_public_key_id

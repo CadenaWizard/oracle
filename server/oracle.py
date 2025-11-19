@@ -233,18 +233,19 @@ class Outcome:
 class Event:
     """An individual event"""
 
-    def __init__(self, dto: EventDto, desc: EventDescription, event_class_id: str):
+    def __init__(self, dto: EventDto, desc: EventDescription, event_class_id: str, signer_public_key: str):
         self.dto = dto
         self.desc = desc
         self.event_class_id = event_class_id
+        self.signer_public_key = signer_public_key
 
     def new(time, event_class: EventClass):
         assert(event_class is not None)
         event_id = Event.event_id_from_class_and_time(event_class, time)
         class_id = event_class.dto.id
         string_template = event_class.desc.event_string_template_for_id(event_id)
-        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key=event_class.desc.signer_public_key)
-        return Event(event_dto, event_class.desc, class_id)
+        event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key_id=-1)
+        return Event(event_dto, event_class.desc, class_id, signer_public_key=event_class.dto.signer_public_key)
 
     # Construct event ID of the form 'btceur1748991600'
     def event_id_from_class_and_time(event_class, time):
@@ -278,7 +279,7 @@ class Oracle:
             print(f"ERROR: Event class already present! id '{ec.dto.id}'")
             return
         event_dtos = self.generate_events_from_class(ec=ec)
-        added_event_cnt = self.db.events_append_if_missing(event_dtos)
+        added_event_cnt = self.db.events_append_if_missing(event_dtos, ec.dto.signer_public_key)
         print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
         self.db.print_stats()
 
@@ -417,15 +418,16 @@ class Oracle:
         return self._get_event_info_with_outcome(event, None)
 
     def get_event_obj_by_id(self, event_id: str) -> Event | None:
-        e_dto = self.db.events_get_by_id(event_id)
-        if e_dto is None:
+        res = self.db.events_get_by_id(event_id)
+        if res is None:
             return None
+        e_dto, pubkey = res
         event_class_dto = self.db.event_classes_get_by_id(e_dto.class_id)
         if event_class_dto is None:
             # Could not get event class!
             return None
         desc = EventClass(event_class_dto).desc
-        return Event(e_dto, desc, event_class_dto.id)
+        return Event(e_dto, desc, event_class_dto.id, pubkey)
 
     def get_event_by_id(self, event_id: str):
         e = self.get_event_obj_by_id(event_id)
@@ -494,7 +496,7 @@ class Oracle:
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
-                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.dto.signer_public_key, self.get_nonces(e))
+                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.signer_public_key, self.get_nonces(e))
                 self.db.digitoutcomes_insert(eid, outcome.digits)
                 self.db.outcomes_insert(outcome.dto)
             except Exception as ex:

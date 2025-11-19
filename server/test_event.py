@@ -293,7 +293,7 @@ class EventTestCase(unittest.TestCase):
         self.assertEqual(e.dto.event_id, id)
         self.assertEqual(e.event_class_id, class_id)
         self.assertEqual(e.dto.time, time)
-        self.assertEqual(e.dto.signer_public_key, "signer_key")
+        self.assertEqual(e.dto.signer_public_key_id, -1)
         self.assertEqual(e.dto.string_template, "Outcome:btcusd1705190400:{digit_index}:{digit_outcome}")
 
 

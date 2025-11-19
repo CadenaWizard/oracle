@@ -53,18 +53,18 @@ class EventStorageTestClass(unittest.TestCase):
             time = event_class.repeat_first_time + period * event_class.repeat_period
             event_id = "ev_btcusd_01_00" + str(period)
             template = event_class.event_string_template.replace("{event_id}", event_id)
-            e = EventDto(event_id, class_id=event_class.id, definition=event_class.definition, time=time, string_template=template, signer_public_key="signer_pubkey_001")
-            db.events_insert_if_missing(e)
+            e = EventDto(event_id, class_id=event_class.id, definition=event_class.definition, time=time, string_template=template, signer_public_key_id=-1)
+            db.events_insert_if_missing(e, "signer_pubkey_001")
 
             # Ask back
             self.assertEqual(db.events_len(), i + 1)
-            evb = db.events_get_by_id(event_id)
+            evb, spb = db.events_get_by_id(event_id)
             self.assertEqual(evb.__dict__, e.__dict__)
             self.assertEqual(evb.string_template, "Outcome:ev_btcusd_01_00" + str(period) + ":{digit_index}:{digit_outcome}")
-            self.assertEqual(evb.signer_public_key, "signer_pubkey_001")
+            self.assertEqual(spb, "signer_pubkey_001")
 
             # Try to add again
-            db.events_insert_if_missing(e)
+            db.events_insert_if_missing(e,"signer_pubkey_001")
             self.assertEqual(db.events_len(), i + 1)
 
             # Prepare some nonces
@@ -91,7 +91,7 @@ class EventStorageTestClass(unittest.TestCase):
             nonces = db.nonces_get(event_id)
             dos = []
             for d in range(event_class.range_digits):
-                event = db.events_get_by_id(event_id)
+                event, _spk = db.events_get_by_id(event_id)
                 digit_value = int(("0"+str(value))[d])
                 msg_str = event.string_template.replace("{digit_index}", str(d)).replace("{digit_outcome}", str(digit_value))
                 do = DigitOutcome(event_id, index=d, value=digit_value, nonce=nonces[d].nonce_pub, signature=f"This_is_a_signature_{event_id}_{d}", msg_str=msg_str)
@@ -125,8 +125,8 @@ class EventStorageTestClass(unittest.TestCase):
         db.nonces_insert([n])
 
         event_class_id = "btcusd_class01"
-        e = EventDto(event_id=event_id, class_id=event_class_id, definition="BTCUSD", time=self.start_time, string_template="template", signer_public_key="signer_pubkey")
-        db.events_insert_if_missing(e)
+        e = EventDto(event_id=event_id, class_id=event_class_id, definition="BTCUSD", time=self.start_time, string_template="template", signer_public_key_id=-1)
+        db.events_insert_if_missing(e, "signer_pubkey")
 
         repeat_time = 3600
         repeat_first_time = int(math.floor(self.start_time / repeat_time)) * repeat_time - 7 * repeat_time
@@ -157,9 +157,9 @@ class EventStorageTestClass(unittest.TestCase):
             time = event_class.repeat_first_time + period * event_class.repeat_period
             event_id = "ev_btcusd_01_00" + str(period)
             template = event_class.event_string_template.replace("{event_id}", event_id)
-            e = EventDto(event_id, class_id=event_class.id, definition=event_class.definition, time=time, string_template=template, signer_public_key="signer_pubkey_001")
+            e = EventDto(event_id, class_id=event_class.id, definition=event_class.definition, time=time, string_template=template, signer_public_key_id=-1)
             events.append(e)
-            db.events_insert_if_missing(e)
+            db.events_insert_if_missing(e, "signer_pubkey_001")
 
             # Prepare some nonces
             nonces = []
@@ -182,7 +182,7 @@ class EventStorageTestClass(unittest.TestCase):
             nonces = db.nonces_get(event_id)
             dos = []
             for d in range(event_class.range_digits):
-                event = db.events_get_by_id(event_id)
+                event, _spk = db.events_get_by_id(event_id)
                 digit_value = int(("0"+str(value))[d])
                 msg_str = event.string_template.replace("{digit_index}", str(d)).replace("{digit_outcome}", str(digit_value))
                 do = DigitOutcome(event_id, index=d, value=digit_value, nonce=nonces[d].nonce_pub, signature=f"This_is_a_signature_{event_id}_{d}", msg_str=msg_str)
