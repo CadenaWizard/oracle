@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from db import EventStorage
+from db import EventStorageDb
 import dlcplazacryptlib
 from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
 from price import PriceSource
@@ -258,7 +258,7 @@ class Oracle:
             price_source = PriceSource()
         else:
             price_source = price_source_override
-        self.db = EventStorage()
+        self.db = EventStorageDb(data_dir=data_dir)
         self.public_key = public_key
         self.price_source = price_source
 

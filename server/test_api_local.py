@@ -12,7 +12,7 @@ class ServerApiTestClass(unittest.TestCase):
 
         prepare_test_secret_for_cryptlib()
 
-        # recreate_empty_db_file()
+        recreate_empty_db_file()
 
         # Trick here: only import these after setting up the secret file
         from main import app, oracle_app
