@@ -1,5 +1,8 @@
+from db import db_setup_from_to
 from price_common import PriceInfo
 import dlcplazacryptlib
+
+import sqlite3
 import os
 
 
@@ -19,6 +22,15 @@ def prepare_test_secret_for_cryptlib():
         print(copycmd)
         os.system(copycmd)
     assert(os.path.exists(secret_file_name))
+
+
+def recreate_empty_db_file():
+    dbfile = "./ora.db"
+    if os.path.exists(dbfile):
+        os.remove(dbfile)
+    conn = sqlite3.connect(dbfile)
+    db_setup_from_to(conn)
+    conn.close()
 
 
 # A test mock for PriceSource, returns a constant price

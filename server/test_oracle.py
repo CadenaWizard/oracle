@@ -1,6 +1,6 @@
+from db import db_setup_from_to
 from oracle import EventClass, EventDescription, Oracle
-from test_common import PriceSourceMockConstant
-from test_common import initialize_cryptlib_direct
+from test_common import PriceSourceMockConstant, initialize_cryptlib_direct, recreate_empty_db_file
 
 import math
 import unittest
@@ -28,9 +28,11 @@ class OracleTestClass(unittest.TestCase):
 
     # Helper to create oracle instance
     def create_oracle(self):
+        # recreate_empty_db_file()
+
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, price_source_override=price_mock)
+        o = Oracle(self.public_key, data_dir=".", price_source_override=price_mock)
         return o
 
     # Create Oracle
@@ -152,6 +154,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(len(filtered[0]['nonces']), 7)
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
+
         o.close()
 
     def test_next_event(self):
@@ -171,6 +174,7 @@ class OracleTestClass(unittest.TestCase):
         # next-next
         next_next_event = o._get_next_event_with_time(definition, next_event['time_utc'] + 1)
         self.assertEqual(next_next_event['time_utc'], 1763020800)
+
         o.close()
 
     # Next event with multiple event classes per definition

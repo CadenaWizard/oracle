@@ -1,4 +1,4 @@
-from test_common import PriceSourceMockConstant, prepare_test_secret_for_cryptlib
+from test_common import PriceSourceMockConstant, prepare_test_secret_for_cryptlib, recreate_empty_db_file
 
 from datetime import datetime, UTC
 from fastapi.testclient import TestClient
@@ -11,6 +11,8 @@ class ServerApiTestClass(unittest.TestCase):
         print("setUpClass")
 
         prepare_test_secret_for_cryptlib()
+
+        # recreate_empty_db_file()
 
         # Trick here: only import these after setting up the secret file
         from main import app, oracle_app

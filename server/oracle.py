@@ -244,7 +244,7 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key, price_source_override = None):
+    def __init__(self, public_key, data_dir: str = ".", price_source_override = None):
         if price_source_override is None:
             price_source = PriceSource()
         else:
@@ -315,8 +315,8 @@ class Oracle:
         return self._get_oracle_status_time(now)
 
     # TODO: such operational data should be moved out of code, into config/DB
-    def get_default_instance(public_key):
-        o = Oracle(public_key=public_key)
+    def get_default_instance(public_key, data_dir: str = "."):
+        o = Oracle(public_key=public_key, data_dir=data_dir)
         o.db.delete_all_contents()
         o.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
@@ -542,7 +542,7 @@ class Oracle:
 class OracleApp:
     oracle: Oracle
 
-    def __init__(self):
+    def __init__(self, data_dir: str = "."):
         _xpub = dlcplazacryptlib.init("./secret.sec", "password")
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)
@@ -550,13 +550,14 @@ class OracleApp:
         random.seed()
 
     def get_singleton_instance() -> Oracle:
+        print("get_singleton_instance")
         global _singleton_app_instance
         if not _singleton_app_instance:
             _singleton_app_instance = OracleApp.create_default_app_instance()
         return _singleton_app_instance
 
     def create_default_app_instance() -> Oracle:
-        app = OracleApp()
+        app = OracleApp(data_dir=".")
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
             _thread.start_new(outcome_loop_thread, (app.oracle, ))
