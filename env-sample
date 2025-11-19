@@ -1,0 +1,3 @@
+# Location of the secret key file
+KEY_SECRET_FILE_NAME="./secret.sec"
+KEY_SECRET_PWD="password"

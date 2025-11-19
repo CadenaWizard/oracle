@@ -9,7 +9,9 @@ from price import PriceSource
 from util import power_of_ten
 
 from datetime import datetime, UTC
+from dotenv import load_dotenv
 import math
+import os
 import random
 import sys
 import _thread
@@ -543,7 +545,11 @@ class OracleApp:
     oracle: Oracle
 
     def __init__(self, data_dir: str = "."):
-        _xpub = dlcplazacryptlib.init("./secret.sec", "password")
+        # Take location of secret file from dotenv
+        load_dotenv()
+        secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
+        secret_pass = os.getenv("KEY_SECRET_PWD", default="")
+        _xpub = dlcplazacryptlib.init(secret_file, secret_pass)
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)
         self.oracle = Oracle.get_default_instance(public_key=public_key)

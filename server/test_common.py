@@ -15,13 +15,11 @@ def initialize_cryptlib_direct():
 
 
 def prepare_test_secret_for_cryptlib():
-    # Prepare secret key file for testing, from checked-in test file
-    secret_file_name = "./secret.sec"
-    if not os.path.exists(secret_file_name):
-        copycmd = f"cp ./testdata/dummy_test_secret.sec {secret_file_name}"
-        print(copycmd)
-        os.system(copycmd)
-    assert(os.path.exists(secret_file_name))
+    # Prepare variables for secret key file for testing, to point to test file
+    secret_file = "./testdata/dummy_test_secret.sec"
+    assert(os.path.exists(secret_file))
+    os.environ["KEY_SECRET_FILE_NAME"] = secret_file
+    os.environ["KEY_SECRET_PWD"] = "password"
 
 
 def recreate_empty_db_file():
