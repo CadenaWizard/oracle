@@ -244,9 +244,11 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key, price_source = None):
-        if price_source is None:
+    def __init__(self, public_key, price_source_override = None):
+        if price_source_override is None:
             price_source = PriceSource()
+        else:
+            price_source = price_source_override
         self.db = EventStorage()
         self.public_key = public_key
         self.price_source = price_source
@@ -318,12 +320,11 @@ class Oracle:
         o.db.delete_all_contents()
         o.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
-        default_public_key = "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"
         repeat_first_time = 1704067200 + 17 * 30 * 86400
         repeat_last_time = repeat_first_time + 18 * 30 * 86400
         default_event_classes=[
-            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, default_public_key),
-            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, default_public_key),
+            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, public_key),
+            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, public_key),
         ]
         o.load_event_classes(default_event_classes)
         return o

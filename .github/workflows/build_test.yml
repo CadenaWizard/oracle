@@ -28,6 +28,7 @@ jobs:
       run: cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
     - name: Run unit tests
       run: |
+        ./venv/bin/python3 ./server/test_api_local.py
         ./venv/bin/python3 ./server/test_db.py
         ./venv/bin/python3 ./server/test_event.py
         ./venv/bin/python3 ./server/test_oracle.py

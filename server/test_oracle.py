@@ -1,26 +1,9 @@
 from oracle import EventClass, EventDescription, Oracle
-from price_common import PriceInfo
-from test_common import initialize_cryptlib
+from test_common import PriceSourceMockConstant
+from test_common import initialize_cryptlib_direct
 
 import math
 import unittest
-
-
-# A test mock for PriceSource, returns a constant price
-class PriceSourceMockConstant:
-    def __init__(self, const_price: float):
-        self.const_price = const_price
-        self.symbol_rates = {
-            'BTCUSD': 1.0,
-            'BTCEUR': 0.9,
-        }
-
-    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
-        symbol = symbol.upper()
-        assert(symbol in self.symbol_rates)
-        relative_rate = self.symbol_rates[symbol]
-        rate = self.const_price * relative_rate
-        return PriceInfo(rate, symbol, preferred_time, "MockConstant")
 
 
 class OracleTestClass(unittest.TestCase):
@@ -32,7 +15,7 @@ class OracleTestClass(unittest.TestCase):
     def setUpClass(cls):
         print("setUpClass")
 
-        cls.public_key = initialize_cryptlib()
+        cls.public_key = initialize_cryptlib_direct()
         repeat_time = 3600
         cls.now = 1762988557
         cls.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
@@ -47,7 +30,7 @@ class OracleTestClass(unittest.TestCase):
     def create_oracle(self):
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, price_source=price_mock)
+        o = Oracle(self.public_key, price_source_override=price_mock)
         return o
 
     # Create Oracle
