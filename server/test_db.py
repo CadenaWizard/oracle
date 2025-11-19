@@ -58,8 +58,10 @@ class EventStorageTestClass(unittest.TestCase):
 
             # Ask back
             self.assertEqual(db.events_len(), i + 1)
-            self.assertEqual(db.events_get_by_id(event_id).__dict__, e.__dict__)
-            self.assertEqual(db.events_get_by_id(event_id).string_template, "Outcome:ev_btcusd_01_00" + str(period) + ":{digit_index}:{digit_outcome}")
+            evb = db.events_get_by_id(event_id)
+            self.assertEqual(evb.__dict__, e.__dict__)
+            self.assertEqual(evb.string_template, "Outcome:ev_btcusd_01_00" + str(period) + ":{digit_index}:{digit_outcome}")
+            self.assertEqual(evb.signer_public_key, "signer_pubkey_001")
 
             # Try to add again
             db.events_insert_if_missing(e)

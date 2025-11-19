@@ -230,8 +230,10 @@ class NoncesTestCase(unittest.TestCase):
 
 
 class OutcomeTestCase(unittest.TestCase):
-    def setUp(self):
-        initialize_cryptlib_direct()
+    @classmethod
+    def setUpClass(cls):
+        print("setUpClass")
+        _xpub, cls.public_key = initialize_cryptlib_direct()
 
     def test_init(self):
         event_id = "event123"
@@ -251,7 +253,7 @@ class OutcomeTestCase(unittest.TestCase):
         desc = EventDescription("BTCUSD", digits, 0, "signer_key1")
         nonces = Nonces.generate(event_id, digits)
         outcome_value = "88001.52"
-        o = Outcome.create(outcome_value=outcome_value, event_id=event_id, event_desc=desc, created_time=2019600000, nonces=nonces)
+        o = Outcome.create(outcome_value=outcome_value, event_id=event_id, event_desc=desc, created_time=2019600000, signer_public_key=self.public_key, nonces=nonces)
         self.assertEqual(o.dto.event_id, event_id)
         self.assertEqual(len(o.digits), digits)
         a_digit_info = o.digits[3].to_info()
@@ -267,6 +269,8 @@ class OutcomeTestCase(unittest.TestCase):
         })
         digits = list(map(lambda d: d.value, o.digits))
         self.assertEqual(digits, [0, 0, 8, 8, 0, 0, 2])
+
+        # TODO: validate signature!
 
         # Too few nonces
         nonces4 = Nonces.generate(event_id, 4)

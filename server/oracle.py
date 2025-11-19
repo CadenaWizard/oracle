@@ -197,7 +197,7 @@ class Outcome:
         self.digits = digit_outcomes
 
     # Create the outcome. May throw
-    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, nonces: list[Nonce]):
+    def create(outcome_value: str, event_id: str, event_desc: EventDescription, created_time: float, signer_public_key: str, nonces: list[Nonce]):
         outcome_dto = OutcomeDto(event_id=event_id, value=outcome_value, created_time=created_time)
 
         digit_values = event_desc.value_to_digits(float(outcome_value))
@@ -208,6 +208,12 @@ class Outcome:
             raise Exception(f"Not enough digit_values, {digit_values} {n}")
         if len(nonces) < n:
             raise Exception(f"Not enough nonces, {len(nonces)} {n}")
+
+        # For signing we use the pubkey configured into cryptlib,
+        # Check that signer pubkey matches the event's
+        lib_pubkey = dlcplazacryptlib.get_public_key(0)
+        if lib_pubkey != signer_public_key:
+            raise Exception(f"Signing error: key not matching pubkey '{signer_public_key}' ({lib_pubkey})")
 
         digits = []
         for i in range(n):
@@ -488,15 +494,15 @@ class Oracle:
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
-                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, self.get_nonces(e))
+                outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.dto.signer_public_key, self.get_nonces(e))
                 self.db.digitoutcomes_insert(eid, outcome.digits)
                 self.db.outcomes_insert(outcome.dto)
             except Exception as ex:
-                print(f"Exception while generating outcome, {ex}")
+                print(f"Exception while creating outcome, {ex}")
                 # continue
             cnt += 1
         if cnt > 0:
-            print(f"Generated outcomes for {cnt} past events")
+            print(f"Created outcomes for {cnt} past events")
             self.db.print_stats()
         return cnt
 

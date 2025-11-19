@@ -15,10 +15,10 @@ class OracleTestClass(unittest.TestCase):
     def setUpClass(cls):
         print("setUpClass")
 
-        cls.public_key = initialize_cryptlib_direct()
+        _xpub, cls.public_key = initialize_cryptlib_direct()
         repeat_time = 3600
         cls.now = 1762988557
-        cls.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"
+        cls.test_public_key = "0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd"
         repeat_first_time = int(math.floor(cls.now / repeat_time)) * repeat_time - 7 * repeat_time
         repeat_last_time = repeat_first_time + 37 * repeat_time
         cls.event_classes = [
@@ -42,7 +42,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(o.public_key, self.public_key)
         self.assertEqual(o.db.event_classes_len(), 0)
         self.assertEqual(o.db.events_len(), 0)
-        self.assertEqual(o.get_oracle_info()['main_public_key'], 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG')
+        self.assertEqual(o.get_oracle_info()['main_public_key'], '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd')
         o.close()
 
     # Create Oracle and fill with event classes
@@ -74,7 +74,7 @@ class OracleTestClass(unittest.TestCase):
                 'range_max_value': 9999999,
                 'range_min_value': 0,
                 'range_unit': 1,
-                'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG',
+                'signer_public_key': '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd',
             },
             'repeat_first_time': 1762963200,
             'repeat_period': 3600,
@@ -111,7 +111,7 @@ class OracleTestClass(unittest.TestCase):
             'range_min_value': 0,
             'range_max_value': 9999999,
             'event_class': 'btceur01',
-            'signer_public_key': 'tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
+            'signer_public_key': '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
             'has_outcome': False,
         })
         o.close()
