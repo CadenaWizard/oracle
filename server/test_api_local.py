@@ -1,5 +1,4 @@
-from main import app, oracle_app
-from test_common import PriceSourceMockConstant
+from test_common import PriceSourceMockConstant, prepare_test_secret_for_cryptlib
 
 from datetime import datetime, UTC
 from fastapi.testclient import TestClient
@@ -10,6 +9,12 @@ class ServerApiTestClass(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         print("setUpClass")
+
+        prepare_test_secret_for_cryptlib()
+
+        # Trick here: only import these after setting up the secret file
+        from main import app, oracle_app
+
         price_mock = PriceSourceMockConstant(98765)
         cls.client = TestClient(app=app)
         # Overwrite the price source inside the app
@@ -28,8 +33,8 @@ class ServerApiTestClass(unittest.TestCase):
         response = self.client.get("/api/v0/oracle/oracle_info")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
-            "main_public_key":"0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd",
-            "public_keys": ["0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd"]
+            "main_public_key":"0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c",
+            "public_keys": ["0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c"]
         })
 
     def test_oracle_status(self):

@@ -1,13 +1,24 @@
 from price_common import PriceInfo
 import dlcplazacryptlib
+import os
 
 
-def initialize_cryptlib():
-    """Call before every test case."""
-    dummy_entropy = "01010101010101010101010101010101"
-    xpub = dlcplazacryptlib.init_with_entropy(dummy_entropy, "signet")
+DUMMY_ENTROPY = "01010101010101010101010101010101"
+
+def initialize_cryptlib_direct():
+    xpub = dlcplazacryptlib.init_with_entropy(DUMMY_ENTROPY, "signet")
     print(f"cryptlib initialized, xpub: {xpub}")
     return xpub
+
+
+def prepare_test_secret_for_cryptlib():
+    # Prepare secret key file for testing, from checked-in test file
+    secret_file_name = "./secret.sec"
+    if not os.path.exists(secret_file_name):
+        copycmd = f"cp ./testdata/dummy_test_secret.sec {secret_file_name}"
+        print(copycmd)
+        os.system(copycmd)
+    assert(os.path.exists(secret_file_name))
 
 
 # A test mock for PriceSource, returns a constant price

@@ -1,6 +1,6 @@
 from oracle import EventClass, EventDescription, Oracle
 from test_common import PriceSourceMockConstant
-from test_common import initialize_cryptlib
+from test_common import initialize_cryptlib_direct
 
 import math
 import unittest
@@ -15,7 +15,7 @@ class OracleTestClass(unittest.TestCase):
     def setUpClass(cls):
         print("setUpClass")
 
-        cls.public_key = initialize_cryptlib()
+        cls.public_key = initialize_cryptlib_direct()
         repeat_time = 3600
         cls.now = 1762988557
         cls.test_public_key = "tpubDCSYyor6BehdMVD2mcvVyGLcGyUxJASV2WH7MDxEULG5WD9iXx36nuABqiLDrM5tWBGUTqYb3Sx4kePh2Uk3zu9gPJsYru2AnfHjVYSocJG"

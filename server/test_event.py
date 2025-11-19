@@ -1,6 +1,6 @@
 from dto import DigitOutcome, Nonce, OutcomeDto
 from oracle import Event, EventClass, EventDescription, Nonces, Outcome
-from test_common import initialize_cryptlib
+from test_common import initialize_cryptlib_direct
 
 import unittest
 
@@ -231,7 +231,7 @@ class NoncesTestCase(unittest.TestCase):
 
 class OutcomeTestCase(unittest.TestCase):
     def setUp(self):
-        initialize_cryptlib()
+        initialize_cryptlib_direct()
 
     def test_init(self):
         event_id = "event123"
