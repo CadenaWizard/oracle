@@ -55,14 +55,24 @@ def db_update_0_1(conn: sqlite3.Connection):
     cursor.execute("CREATE INDEX EcDefinition ON EVENTCLASS (Definition)")
 
     cursor.execute("""
+        CREATE TABLE PUBKEY (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Pubkey VARCHAR(100)
+        )
+    """)
+    cursor.execute("CREATE INDEX PubkeyId ON PUBKEY (Id)")
+    cursor.execute("CREATE INDEX PubkeyPubkey ON PUBKEY (Pubkey)")
+
+    cursor.execute("""
         CREATE TABLE EVENT (
             EventId VARCHAR(100) PRIMARY KEY,
             ClassId VARCHAR(100),
             Definition VARCHAR(100),
             Time INTEGER,
             StringTemplate VARCHAR(100),
-            PublicKey VARCHAR(100),
+            PublicKeyId INTEGER,
             FOREIGN KEY (ClassId) REFERENCES EVENTCLASS(Id)
+            FOREIGN KEY (PublicKeyId) REFERENCES PUBKEY(Id)
         )
     """)
     cursor.execute("CREATE INDEX EvEventId ON EVENT (EventId)")
@@ -115,6 +125,7 @@ def db_delete_all_contents(conn: sqlite3.Connection):
     cursor.execute("DELETE FROM OUTCOME")
     cursor.execute("DELETE FROM EVENT")
     cursor.execute("DELETE FROM EVENTCLASS")
+    cursor.execute("DELETE FROM PUBKEY")
     conn.commit()
     cursor.close()
 
@@ -239,6 +250,28 @@ def db_eventclass_all_by_def(cursor: sqlite3.Cursor, defi: str) -> list[EventCla
     return ret
 
 
+# Insert if missing. Returns the pubkey id
+def db_pubkey_insert_if_missing(cursor: sqlite3.Cursor, pubkey: str) -> int:
+    cursor.execute("SELECT Id FROM PUBKEY WHERE Pubkey == ? LIMIT 1", (pubkey,))
+    rows = cursor.fetchall()
+    if len(rows) >= 1:
+        if len(rows[0]) >= 1:
+            if rows[0][0] is not None:
+                return rows[0][0]
+    # Not found, insert
+    cursor.execute("INSERT INTO PUBKEY (Pubkey) Values (?) RETURNING Id", (pubkey,))
+    rows = cursor.fetchall()
+    if len(rows) >= 1:
+        if len(rows[0]) >= 1:
+            if rows[0][0] is not None:
+                return rows[0][0]
+    raise Exception(f"ERROR Could not insert public key {pubkey}")
+
+
+def db_pubkey_count(cursor: sqlite3.Cursor) -> int:
+    return _db_count_from_table(cursor, "PUBKEY")
+
+
 def db_nonce_insert_one(cursor: sqlite3.Cursor, nonce: Nonce):
     cursor.execute("""
         INSERT INTO NONCE 
@@ -354,11 +387,11 @@ def db_event_insert_if_missing(cursor: sqlite3.Cursor, e: EventDto) -> int:
     cursor.execute(
         """
             INSERT INTO EVENT
-            (EventId, ClassId, Definition, Time, StringTemplate, PublicKey)
+            (EventId, ClassId, Definition, Time, StringTemplate, PublicKeyId)
             VALUES (?, ?, ?, ?, ?, ?)
             RETURNING EventId
         """,
-        (e.event_id, e.class_id, e.definition, e.time, e.string_template, e.signer_public_key)
+        (e.event_id, e.class_id, e.definition, e.time, e.string_template, e.signer_public_key_id)
     )
     rows = cursor.fetchall()
     if len(rows) >= 1:
@@ -374,17 +407,20 @@ def db_event_count(cursor: sqlite3.Cursor) -> int:
     return _db_count_from_table(cursor, "EVENT")
 
 
-def _db_event_from_row(r) -> EventDto | None:
-    if len(r) < 6:
+def _db_event_from_row(r) -> tuple[EventDto, str] | None:
+    if len(r) < 7:
         return None
-    return EventDto(r[0], r[1], r[2], int(r[3]), r[4], r[5])
+    e = EventDto(r[0], r[1], r[2], int(r[3]), r[4], int(r[6]))
+    return [e, r[5]]
 
 
-def db_event_get_by_id(cursor: sqlite3.Cursor, event_id: str) -> EventDto | None:
+def db_event_get_by_id(cursor: sqlite3.Cursor, event_id: str) -> tuple[EventDto, str] | None:
     cursor.execute("""
-        SELECT EventId, ClassId, Definition, Time, StringTemplate, PublicKey
+        SELECT
+            EVENT.EventId, EVENT.ClassId, EVENT.Definition, EVENT.Time, EVENT.StringTemplate, PUBKEY.Pubkey, PUBKEY.Id
         FROM EVENT
-        WHERE EventId == ?
+        LEFT OUTER JOIN PUBKEY ON PUBKEY.Id == EVENT.PublicKeyId
+        WHERE EVENT.EventId == ?
     """, (event_id,))
     rows = cursor.fetchall()
     if len(rows) < 1:
@@ -572,11 +608,12 @@ class EventStorageDb:
     def print_stats(self):
         cursor = self._getcursor_ro()
         c_evcl = db_eventclass_count(cursor)
+        c_pkey = db_pubkey_count(cursor)
         c_ev = db_event_count(cursor)
         c_nonce = db_nonce_count(cursor)
         c_diou = db_digitoutcome_count(cursor)
         c_outcome = db_outcome_count(cursor)
-        print(f"DB stats: evcl: {c_evcl}  nonce: {c_nonce}  ev: {c_ev}  diou: {c_diou}  outcome: {c_outcome}")
+        print(f"DB stats: evcl: {c_evcl}  pkey: {c_pkey}  nonce: {c_nonce}  ev: {c_ev}  diou: {c_diou}  outcome: {c_outcome}")
 
     def event_classes_insert_if_missing(self, ec: EventClassDto) -> int:
         conn = self._getconn_rw()
@@ -631,19 +668,23 @@ class EventStorageDb:
         cursor = self._getcursor_ro()
         return db_nonce_get_all_by_id(cursor, event_id)
 
-    def events_insert_if_missing(self, e: EventDto) -> int:
+    def events_insert_if_missing(self, e: EventDto, signer_public_key: str) -> int:
         conn = self._getconn_rw()
         cursor = conn.cursor()
+        pubkey_id = db_pubkey_insert_if_missing(cursor, signer_public_key)
+        e.signer_public_key_id = pubkey_id
         ret = db_event_insert_if_missing(cursor, e)
         conn.commit()
         cursor.close()
         return ret
 
-    def events_append_if_missing(self, more_events: dict[str, EventDto]) -> int:
+    def events_append_if_missing(self, more_events: dict[str, EventDto], signer_public_key: str) -> int:
         conn = self._getconn_rw()
         cursor = conn.cursor()
+        pubkey_id = db_pubkey_insert_if_missing(cursor, signer_public_key)
         added_cnt = 0
         for [_eid, e] in more_events.items():
+            e.signer_public_key_id = pubkey_id
             added_cnt += db_event_insert_if_missing(cursor, e)
         conn.commit()
         cursor.close()
@@ -653,7 +694,8 @@ class EventStorageDb:
         cursor = self._getcursor_ro()
         return db_event_count(cursor)
 
-    def events_get_by_id(self, event_id: str) -> EventDto | None:
+    # Also returns the signer pubkey
+    def events_get_by_id(self, event_id: str) -> tuple[EventDto, str] | None:
         cursor = self._getcursor_ro()
         return db_event_get_by_id(cursor, event_id)
 
@@ -713,6 +755,8 @@ class EventStorage:
         self._event_classes: dict[str, EventClassDto] = {}
         # Holds  nonces, key is event ID
         self._nonces: dict[str, list[Nonce]] = {}
+        # Hold private keys separately (to save space)
+        self._pubkeys: dict[int, str] = {}
         # Holds all the events, past and future. Key is the ID
         self._events: dict[str, EventDto] = {}
         # Holds digit outcomes, key is event ID
@@ -730,11 +774,12 @@ class EventStorage:
         self._event_classes = {}
         self._nonces = {}
         self._events = {}
+        self._pubkeys = {}
         self._digitoutcomes = {}
         self._outcomes = {}
 
     def print_stats(self):
-        print(f"DB stats: evcl: {len(self._event_classes)}  nonce: {len(self._nonces)}  ev: {len(self._events)}  diou: {len(self._digitoutcomes)}  outcome: {len(self._outcomes)}")
+        print(f"DB stats: evcl: {len(self._event_classes)}  pkey {len(self._pubkeys)}  nonce: {len(self._nonces)}  ev: {len(self._events)}  diou: {len(self._digitoutcomes)}  outcome: {len(self._outcomes)}")
 
     def event_classes_insert_if_missing(self, ec: EventClassDto) -> int:
         ecid = ec.id
@@ -791,27 +836,43 @@ class EventStorage:
             return []
         return self._nonces[event_id]
 
-    def events_insert_if_missing(self, e: EventDto) -> int:
+    def pubkey_insert_if_missing(self, pubkey: str) -> int:
+        for pid, p in self._pubkeys.items():
+            if p == pubkey:
+                return pid
+        # Not found, add
+        pid = len(self._pubkeys)
+        assert(pid not in self._pubkeys)
+        self._pubkeys[pid] = pubkey
+        return pid
+
+    def events_insert_if_missing(self, e: EventDto, signer_public_key: str) -> int:
         eid = e.event_id
         if eid in self._events:
             # Already present
             return 0
+        pubkey_id = self.pubkey_insert_if_missing(signer_public_key)
+        e.signer_public_key_id = pubkey_id
         self._events[eid] = e
         return 1
 
-    def events_append_if_missing(self, more_events: dict[str, EventDto]) -> int:
+    def events_append_if_missing(self, more_events: dict[str, EventDto], signer_public_key: str) -> int:
         added_cnt = 0
         for [_eid, e] in more_events.items():
-            added_cnt += self.events_insert_if_missing(e)
+            added_cnt += self.events_insert_if_missing(e, signer_public_key)
         return added_cnt
 
     def events_len(self) -> int:
         return len(self._events)
 
-    def events_get_by_id(self, event_id: str) -> EventDto | None:
+    # Also returns the signer pubkey
+    def events_get_by_id(self, event_id: str) -> tuple[EventDto, str] | None:
         if event_id not in self._events:
             return None
-        return self._events[event_id]
+        e = self._events[event_id]
+        if e.signer_public_key_id not in self._pubkeys:
+            return None
+        return [e, self._pubkeys[e.signer_public_key_id]]
 
     # Get the time of the earliest event without outcome
     def events_get_earliest_time_without_outcome(self) -> int:

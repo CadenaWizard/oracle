@@ -8,10 +8,12 @@ import os
 
 DUMMY_ENTROPY = "01010101010101010101010101010101"
 
+# Return Xpub and default (0th) pubkey
 def initialize_cryptlib_direct():
     xpub = dlcplazacryptlib.init_with_entropy(DUMMY_ENTROPY, "signet")
-    print(f"cryptlib initialized, xpub: {xpub}")
-    return xpub
+    pubkey = dlcplazacryptlib.get_public_key(0)
+    print(f"cryptlib initialized, xpub: {xpub}  pubkey: {pubkey}")
+    return xpub, pubkey
 
 
 def prepare_test_secret_for_cryptlib():
