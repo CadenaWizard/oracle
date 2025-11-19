@@ -39,8 +39,15 @@ python3 ./dlcplazacryptlib/save_secret.py --set --file secret.sec
 Enter your securely generated secret mnemonic, be sure to back it up!
 
 
-Start the server:
+Prepare `.env` file; copy sample and change settings as needed:
+
+```shell
+cp env-sample .env
 ```
+
+
+Start the server:
+```shell
 ./start_oracle_server_dev.sh
 ```
 (or: )
