@@ -95,7 +95,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(ev1['definition'], 'BTCEUR')
 
         # Nonces may change
-        self.assertEqual(len(ev1['nonces']), 7)
+        self.assertEqual(len(ev1['nonces']), 14)
         self.assertEqual(len(ev1['nonces'][0]), 66)
         del ev1['nonces']
         self.assertEqual(ev1, {
@@ -151,7 +151,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(filtered[0]['definition'], 'BTCUSD')
         self.assertEqual(filtered[0]['range_digits'], 7)
         self.assertEqual(filtered[0]['has_outcome'], False)
-        self.assertEqual(len(filtered[0]['nonces']), 7)
+        self.assertEqual(len(filtered[0]['nonces']), 14)
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
 

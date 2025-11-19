@@ -678,12 +678,12 @@ class EventStorageDb:
         cursor.close()
         return ret
 
-    def events_append_if_missing(self, more_events: dict[str, EventDto], signer_public_key: str) -> int:
+    def events_append_if_missing(self, more_events: list[EventDto], signer_public_key: str) -> int:
         conn = self._getconn_rw()
         cursor = conn.cursor()
         pubkey_id = db_pubkey_insert_if_missing(cursor, signer_public_key)
         added_cnt = 0
-        for [_eid, e] in more_events.items():
+        for e in more_events:
             e.signer_public_key_id = pubkey_id
             added_cnt += db_event_insert_if_missing(cursor, e)
         conn.commit()
@@ -856,9 +856,9 @@ class EventStorage:
         self._events[eid] = e
         return 1
 
-    def events_append_if_missing(self, more_events: dict[str, EventDto], signer_public_key: str) -> int:
+    def events_append_if_missing(self, more_events: list[EventDto], signer_public_key: str) -> int:
         added_cnt = 0
-        for [_eid, e] in more_events.items():
+        for e in more_events:
             added_cnt += self.events_insert_if_missing(e, signer_public_key)
         return added_cnt
 

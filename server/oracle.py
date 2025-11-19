@@ -268,18 +268,20 @@ class Oracle:
     def delete_all_contents(self):
         self.db.delete_all_contents()
 
-    def load_event_classes(self, event_classes):
+    def load_event_classes(self, event_classes, defer_nonces = False):
         for ec in event_classes:
-            self.add_event_class_and_events(ec)
+            self.add_event_class_and_events(ec, defer_nonces=defer_nonces)
 
-    def add_event_class_and_events(self, ec: EventClass):
+    def add_event_class_and_events(self, ec: EventClass, defer_nonces = False):
         print(f"Generating events for event class '{ec.dto.id}' '{ec.dto.definition}' ...")
         inserted = self.db.event_classes_insert_if_missing(ec.dto)
         if inserted == 0:
             print(f"ERROR: Event class already present! id '{ec.dto.id}'")
             return
-        event_dtos = self.generate_events_from_class(ec=ec)
+        [event_dtos, nonces] = self.generate_events_from_class(ec=ec, defer_nonces=defer_nonces)
         added_event_cnt = self.db.events_append_if_missing(event_dtos, ec.dto.signer_public_key)
+        if len(nonces) > 0:
+            self.db.nonces_insert(nonces)
         print(f"Loaded event class '{ec.dto.id}', generated {len(event_dtos)} events, inserted {added_event_cnt}, total {self.db.events_len()}")
         self.db.print_stats()
 
@@ -288,8 +290,10 @@ class Oracle:
         now = round(datetime.now(UTC).timestamp())
         print(f"Oracle, with {self.db.events_count_future(now)} future events ({self.db.events_len()} total), and {self.db.event_classes_len()} eventclasses")
 
-    def generate_events_from_class(self, ec: EventClass) -> list[EventDto]:
-        e = {}
+    # Generate events. Also nonces, unless deferred
+    def generate_events_from_class(self, ec: EventClass, defer_nonces = False) -> tuple[list[EventDto], list[Nonce]]:
+        events = []
+        noncess = []
         t = ec.dto.repeat_first_time
         cnt = 0
         assert(ec.dto.repeat_period != 0)
@@ -297,12 +301,17 @@ class Oracle:
             assert(t % ec.dto.repeat_period == ec.dto.repeat_offset)
             # create event
             ev = Event.new(event_class=ec, time=t)
-            eid = ev.dto.event_id
+            # eid = ev.dto.event_id
             # print(cnt, " ", eid, ", ", ev.time, ' ', ev.desc.range_digits)
-            e[eid] = ev.dto
+            events.append(ev.dto)
+
+            if not defer_nonces:
+                nonces1 = self.generate_nonces(ev)
+                for n in nonces1:
+                    noncess.append(n)
             t += ec.dto.repeat_period
             cnt += 1
-        return e
+        return [events, noncess]
 
     # Note: public keys may be extended to several
     def get_oracle_info(self):
@@ -335,7 +344,8 @@ class Oracle:
             EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, public_key),
             EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, public_key),
         ]
-        o.load_event_classes(default_event_classes)
+        # TODO: No need to defer, once they are in created only at DB creation
+        o.load_event_classes(default_event_classes, defer_nonces=True)
         return o
 
     # Get event classes
@@ -359,6 +369,13 @@ class Oracle:
         dtos = self.db.event_classes_get_all_by_def(def_upper)
         return list(map(lambda dto: EventClass(dto), dtos))
 
+    def generate_nonces(self, e: Event):
+        nonces = Nonces.generate(e.dto.event_id, e.desc.range_digits)
+        self.db.nonces_insert(nonces)
+        nonces = self.db.nonces_get(e.dto.event_id)
+        assert(len(nonces) > 0)
+        return nonces
+
     # Access nonces, Fill on-demand
     def get_nonces(self, event: Event) -> list[Nonce]:
         eid = event.dto.event_id
@@ -366,12 +383,8 @@ class Oracle:
         if len(nonces) > 0:
             # There are nonces
             return nonces
-        # No nonces, generate now
-        nonces = Nonces.generate(eid, event.desc.range_digits)
-        self.db.nonces_insert(nonces)
-        nonces = self.db.nonces_get(eid)
-        assert(len(nonces) > 0)
-        return nonces
+        # No nonces, generate now!
+        return self.generate_nonces(event)
 
     def get_outcome(self, event_id: str) -> Outcome | None:
         # get outcome (if any)
