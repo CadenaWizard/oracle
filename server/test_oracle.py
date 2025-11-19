@@ -1,4 +1,3 @@
-from db import db_setup_from_to
 from oracle import EventClass, EventDescription, Oracle
 from test_common import PriceSourceMockConstant, initialize_cryptlib_direct, recreate_empty_db_file
 
@@ -28,7 +27,7 @@ class OracleTestClass(unittest.TestCase):
 
     # Helper to create oracle instance
     def create_oracle(self):
-        # recreate_empty_db_file()
+        recreate_empty_db_file()
 
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)

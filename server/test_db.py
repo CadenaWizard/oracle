@@ -1,5 +1,6 @@
-from db import EventStorage, db_setup_from_to
+from db import EventStorageDb
 from dto import EventClassDto, EventDto, DigitOutcome, Nonce, OutcomeDto
+from test_common import recreate_empty_db_file
 
 import math
 import unittest
@@ -19,9 +20,9 @@ class EventStorageTestClass(unittest.TestCase):
 
     # Helper to create storage instance
     def create_db(self):
-        # recreate_empty_db_file()
+        recreate_empty_db_file()
 
-        db = EventStorage()
+        db = EventStorageDb(data_dir=".")
         return db
 
     def test_init(self):
