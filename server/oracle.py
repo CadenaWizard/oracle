@@ -254,6 +254,10 @@ class Event:
 
 class Oracle:
     def __init__(self, public_key, data_dir: str = ".", price_source_override = None):
+        # Horizon, from dotenv
+        self.horizon_days = float(os.getenv("HORIZON_DAYS", 390))
+        print(f"Horizon setting: {self.horizon_days} days")
+
         if price_source_override is None:
             price_source = PriceSource()
         else:
@@ -332,20 +336,40 @@ class Oracle:
         now = datetime.now(UTC).timestamp()
         return self._get_oracle_status_time(now)
 
+    def compute_event_time_range(repeat_period: int, repeat_offset: int, current_time: int, horizon_days: float) -> tuple[int, int]:
+        assert(repeat_period != 0)
+        first_time = math.floor((current_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
+        end_time = current_time + round(horizon_days * 86400)
+        last_time = math.ceil((end_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
+        assert(first_time <= current_time)
+        assert(last_time >= end_time)
+        assert(first_time <= last_time)
+        assert((first_time - repeat_offset) % repeat_period == 0)
+        assert((last_time - repeat_offset) % repeat_period == 0)
+        return [first_time, last_time]
+
+    # TODO: such operational data should be moved out of code, into config/DB
+    def initialize_with_default_data(self, public_key):
+        self.db.delete_all_contents()
+        self.db.print_stats()
+        now = round(datetime.now(UTC).timestamp())
+
+        repeat_period = 10 * 60
+        first_time, last_time = Oracle.compute_event_time_range(repeat_period=repeat_period, repeat_offset=0, current_time=now, horizon_days=self.horizon_days)
+        ec1 = EventClass.new("btcusd", now, "BTCUSD", 7, 0, first_time, repeat_period, last_time, public_key)
+        repeat_period = 12 * 3600
+        first_time, last_time = Oracle.compute_event_time_range(repeat_period=repeat_period, repeat_offset=0, current_time=now, horizon_days=self.horizon_days)
+        ec2 = EventClass.new("btceur", now, "BTCEUR", 7, 0, first_time, repeat_period, last_time, public_key)
+
+        default_event_classes=[ec1, ec2]
+        # TODO: No need to defer nonces, once they are in created only at DB creation
+        self.load_event_classes(default_event_classes, defer_nonces=True)
+        self.print_stats()
+
     # TODO: such operational data should be moved out of code, into config/DB
     def get_default_instance(public_key, data_dir: str = "."):
         o = Oracle(public_key=public_key, data_dir=data_dir)
-        o.db.delete_all_contents()
-        o.db.print_stats()
-        now = round(datetime.now(UTC).timestamp())
-        repeat_first_time = 1704067200 + 17 * 30 * 86400
-        repeat_last_time = repeat_first_time + 18 * 30 * 86400
-        default_event_classes=[
-            EventClass.new("btcusd", now, "BTCUSD", 7, 0, repeat_first_time, 10 * 60, repeat_last_time, public_key),
-            EventClass.new("btceur", now, "BTCEUR", 7, 0, repeat_first_time, 12 * 3600, repeat_last_time, public_key),
-        ]
-        # TODO: No need to defer, once they are in created only at DB creation
-        o.load_event_classes(default_event_classes, defer_nonces=True)
+        o.initialize_with_default_data(public_key)
         return o
 
     # Get event classes
@@ -570,6 +594,7 @@ class OracleApp:
         load_dotenv()
         secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
         secret_pass = os.getenv("KEY_SECRET_PWD", default="")
+
         _xpub = dlcplazacryptlib.init(secret_file, secret_pass)
         public_key = dlcplazacryptlib.get_public_key(0)
         print("dlcplazacryptlib initialized, public key:", public_key)

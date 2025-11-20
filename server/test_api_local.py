@@ -64,6 +64,59 @@ class ServerApiTestClass(unittest.TestCase):
         self.assertEqual(c[0]["class_id"], "btcusd")
         self.assertEqual(c[0]["desc"]["definition"], "BTCUSD")
 
+    def test_event_ids(self):
+        now = round(datetime.now(UTC).timestamp())
+        start_time1 = now - 5 * 86400
+        end_time1 = now + 5 * 86400
+        start_time2 = now - 200 * 86400
+        end_time2 = now + 200 * 86400
+
+        response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&end_time={end_time1}&definition=btcusd")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 721)
+
+        response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&end_time={end_time1}")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 732)
+
+        response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&definition=btcusd")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 5000)
+
+        response = self.client.get(f"/api/v0/event/event_ids?end_time={end_time1}&definition=btcusd")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 721)
+
+        response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 5000)
+
+        response = self.client.get(f"/api/v0/event/event_ids?end_time={end_time1}")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 732)
+
+        response = self.client.get(f"/api/v0/event/event_ids?definition=btcusd")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 5000)
+
+        response = self.client.get(f"/api/v0/event/event_ids")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 5000)
+
+        response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time2}&end_time={end_time2}&definition=btcusd")
+        self.assertEqual(response.status_code, 200)
+        c = response.json()
+        self.assertEqual(len(c), 5000)
+
+
     def test_next_event(self):
         response = self.client.get("/api/v0/event/event_classes")
         self.assertEqual(response.status_code, 200)
