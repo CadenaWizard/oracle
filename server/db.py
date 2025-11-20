@@ -511,7 +511,7 @@ def db_event_get_filter_time_definition(cursor: sqlite3.Cursor, start_time: int,
                 params = (start_time, definition)
             else:
                 where_clause = "WHERE Time >= ?"
-                params = (start_time)
+                params = (start_time,)
     else:
         if end_time != 0:
             if definition is not None:
@@ -519,11 +519,11 @@ def db_event_get_filter_time_definition(cursor: sqlite3.Cursor, start_time: int,
                 params = (end_time, definition)
             else:
                 where_clause = "WHERE Time <= ?"
-                params = (end_time)
+                params = (end_time,)
         else:
             if definition is not None:
                 where_clause = "WHERE Definition == ?"
-                params = (definition)
+                params = (definition,)
             else:
                 where_clause = ""
                 params = ()
