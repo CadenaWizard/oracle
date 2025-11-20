@@ -437,7 +437,7 @@ def db_event_get_earliest_time_without_outcome(cursor: sqlite3.Cursor) -> int:
         ORDER BY EVENT.Time ASC
     """)
     rows = cursor.fetchall()
-    print(rows)
+    # print(rows)
     if len(rows) < 1:
         return 0
     if len(rows[0]) < 1:
@@ -528,6 +528,40 @@ def db_event_get_filter_time_definition(cursor: sqlite3.Cursor, start_time: int,
                 where_clause = ""
                 params = ()
     return _db_event_get_filter_where(cursor, where_clause, params, limit)
+
+
+def db_event_get_latest_time_for_def(cursor: sqlite3.Cursor, definition: str) -> int:
+    cursor.execute("""
+        SELECT MAX(Time)
+        FROM EVENT
+        WHERE Definition == ?
+    """, (definition,))
+    rows = cursor.fetchall()
+    if len(rows) < 1:
+        return 0
+    if len(rows[0]) < 1:
+        return 0
+    if rows[0][0] is None:
+        return 0
+    return int(rows[0][0])
+
+
+def db_event_get_ids_with_no_nonce(cursor: sqlite3.Cursor, limit: int = 100) -> list[int]:
+    limit2 = min(limit, 1000)
+    cursor.execute("""
+        SELECT EVENT.EventId
+        FROM EVENT
+        LEFT OUTER JOIN NONCE ON NONCE.EventId == EVENT.EventId
+        WHERE NONCE.EventId IS NULL
+        LIMIT ?
+    """, (limit2,))
+    ret = []
+    rows = cursor.fetchall()
+    for r in rows:
+        if len(r) >= 1:
+            if r[0] is not None:
+                ret.append(r[0])
+    return ret
 
 
 # Abstract persistence in DB. Takes care of connections.
@@ -717,6 +751,14 @@ class EventStorageDb:
     def events_get_ids_filter(self, start_time: int, end_time: int, definition: str | None, limit: int) -> list[str]:
         cursor = self._getcursor_ro()
         return db_event_get_filter_time_definition(cursor, start_time, end_time, definition, limit)
+
+    def events_get_latest_time_for_def(self, definition: str) -> int:
+        cursor = self._getcursor_ro()
+        return db_event_get_latest_time_for_def(cursor, definition)
+
+    def events_get_ids_with_no_nonce(self, limit: int = 100) -> list[str]:
+        cursor = self._getcursor_ro()
+        return db_event_get_ids_with_no_nonce(cursor, limit)
 
     def digitoutcomes_insert(self, event_id: str, digit_outcome_list: list[DigitOutcome]):
         conn = self._getconn_rw()

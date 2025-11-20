@@ -13,10 +13,12 @@ from dotenv import load_dotenv
 import math
 import os
 import random
-import sys
 import _thread
 import time
 
+
+# For past events older than this no outcome is genrated
+EVENT_TOO_OLD_THRESHOLD=86400
 
 EVENT_STRING_TEMPLATE_DEFAULT = "Outcome:{event_id}:{digit_index}:{digit_outcome}"
 
@@ -174,7 +176,7 @@ class EventClass:
         next_event_time = self.next_event_time(abs_time)
         if next_event_time == 0:
             return None
-        next_event_id = Event.event_id_from_class_and_time(self, next_event_time)
+        next_event_id = Event.event_id_from_class_and_time(self.dto, next_event_time)
         return next_event_id
 
 
@@ -187,7 +189,7 @@ class Nonces:
             newnonce = dlcplazacryptlib.create_deterministic_nonce(event_id, i)
             nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=newnonce[1], nonce_sec=newnonce[0])
             nonces.append(nonce)
-        print(".", end="")
+        # print(".", end="")
         return nonces
 
 
@@ -241,15 +243,15 @@ class Event:
 
     def new(time, event_class: EventClass):
         assert(event_class is not None)
-        event_id = Event.event_id_from_class_and_time(event_class, time)
+        event_id = Event.event_id_from_class_and_time(event_class.dto, time)
         class_id = event_class.dto.id
         string_template = event_class.desc.event_string_template_for_id(event_id)
         event_dto = EventDto(event_id=event_id, class_id=class_id, definition=event_class.dto.definition, time=time, string_template=string_template, signer_public_key_id=-1)
         return Event(event_dto, event_class.desc, class_id, signer_public_key=event_class.dto.signer_public_key)
 
     # Construct event ID of the form 'btceur1748991600'
-    def event_id_from_class_and_time(event_class, time):
-        return event_class.dto.definition.lower() + str(time)
+    def event_id_from_class_and_time(event_class_dto: EventClassDto, time):
+        return event_class_dto.definition.lower() + str(time)
 
 
 class Oracle:
@@ -265,6 +267,17 @@ class Oracle:
         self.db = EventStorageDb(data_dir=data_dir)
         self.public_key = public_key
         self.price_source = price_source
+
+    def initialize_cryptlib() -> str:
+        # Take location of secret file from dotenv
+        load_dotenv()
+        secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
+        secret_pass = os.getenv("KEY_SECRET_PWD", default="")
+
+        _xpub = dlcplazacryptlib.init(secret_file, secret_pass)
+        public_key = dlcplazacryptlib.get_public_key(0)
+        print("dlcplazacryptlib initialized, public key:", public_key)
+        return public_key
 
     def close(self):
         self.db.close()
@@ -282,7 +295,8 @@ class Oracle:
         if inserted == 0:
             print(f"ERROR: Event class already present! id '{ec.dto.id}'")
             return
-        [event_dtos, nonces] = self.generate_events_from_class(ec=ec, defer_nonces=defer_nonces)
+        event_dtos, nonces = self.generate_events_from_class(ec=ec, defer_nonces=defer_nonces)
+        print(f"add_event_class_and_events Generated {len(event_dtos)} events and {len(nonces)} nonces (in memory)")
         added_event_cnt = self.db.events_append_if_missing(event_dtos, ec.dto.signer_public_key)
         if len(nonces) > 0:
             self.db.nonces_insert(nonces)
@@ -313,9 +327,13 @@ class Oracle:
                 nonces1 = self.generate_nonces(ev)
                 for n in nonces1:
                     noncess.append(n)
+                if len(noncess) % 10 == 0:
+                    print(".", end='')
+                if len(noncess) % 1000 == 0:
+                    print(f"\n{len(noncess)}")
             t += ec.dto.repeat_period
             cnt += 1
-        return [events, noncess]
+        return (events, noncess)
 
     # Note: public keys may be extended to several
     def get_oracle_info(self):
@@ -336,17 +354,21 @@ class Oracle:
         now = datetime.now(UTC).timestamp()
         return self._get_oracle_status_time(now)
 
-    def compute_event_time_range(repeat_period: int, repeat_offset: int, current_time: int, horizon_days: float) -> tuple[int, int]:
+    def compute_event_time_range(repeat_period: int, repeat_offset: int, start_time: int, end_time: int) -> tuple[int, int]:
         assert(repeat_period != 0)
-        first_time = math.floor((current_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
-        end_time = current_time + round(horizon_days * 86400)
+        first_time = math.floor((start_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
         last_time = math.ceil((end_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
-        assert(first_time <= current_time)
+        assert(first_time <= start_time)
         assert(last_time >= end_time)
         assert(first_time <= last_time)
         assert((first_time - repeat_offset) % repeat_period == 0)
         assert((last_time - repeat_offset) % repeat_period == 0)
         return [first_time, last_time]
+
+    def create_event_class(self, class_id: str, definition: str, digits: int, digit_low_pos: int, repeat_period, repeat_offset, public_key: str, now: int) -> EventClass:
+        horizon = now + self.horizon_days * 86400
+        first_time, last_time = Oracle.compute_event_time_range(repeat_period=repeat_period, repeat_offset=repeat_offset, start_time=now, end_time=horizon)
+        return EventClass.new(class_id, now, definition.upper(), digits, digit_low_pos, first_time, repeat_period, last_time, public_key)
 
     # TODO: such operational data should be moved out of code, into config/DB
     def initialize_with_default_data(self, public_key):
@@ -354,21 +376,18 @@ class Oracle:
         self.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
 
-        repeat_period = 10 * 60
-        first_time, last_time = Oracle.compute_event_time_range(repeat_period=repeat_period, repeat_offset=0, current_time=now, horizon_days=self.horizon_days)
-        ec1 = EventClass.new("btcusd", now, "BTCUSD", 7, 0, first_time, repeat_period, last_time, public_key)
-        repeat_period = 12 * 3600
-        first_time, last_time = Oracle.compute_event_time_range(repeat_period=repeat_period, repeat_offset=0, current_time=now, horizon_days=self.horizon_days)
-        ec2 = EventClass.new("btceur", now, "BTCEUR", 7, 0, first_time, repeat_period, last_time, public_key)
-
+        ec1 = self.create_event_class(class_id="btcusd", definition="BTCUSD", digits=7, digit_low_pos=0, repeat_period=10*60, repeat_offset=0, public_key=public_key, now=now)
+        ec2 = self.create_event_class(class_id="btceur", definition="BTCEUR", digits=7, digit_low_pos=0, repeat_period=12*3600, repeat_offset=0, public_key=public_key, now=now)
         default_event_classes=[ec1, ec2]
+
         # TODO: No need to defer nonces, once they are in created only at DB creation
         self.load_event_classes(default_event_classes, defer_nonces=True)
         self.print_stats()
 
-    # TODO: such operational data should be moved out of code, into config/DB
-    def get_default_instance(public_key, data_dir: str = "."):
+    def get_default_instance(data_dir: str = "."):
+        public_key = Oracle.initialize_cryptlib()
         o = Oracle(public_key=public_key, data_dir=data_dir)
+        # TODO No need to reinitialize if DB is persisted
         o.initialize_with_default_data(public_key)
         return o
 
@@ -393,11 +412,19 @@ class Oracle:
         dtos = self.db.event_classes_get_all_by_def(def_upper)
         return list(map(lambda dto: EventClass(dto), dtos))
 
+    # Generate nonces for an event
     def generate_nonces(self, e: Event):
         nonces = Nonces.generate(e.dto.event_id, e.desc.range_digits)
+        assert(len(nonces) > 0)
+        return nonces
+
+    # Generate nonces for an event, and insert them in DB
+    def generate_and_insert_nonces(self, e: Event):
+        nonces = self.generate_nonces(e)
         self.db.nonces_insert(nonces)
         nonces = self.db.nonces_get(e.dto.event_id)
         assert(len(nonces) > 0)
+        # print(f"Nonces inserted, {e.dto.event_id} {len(nonces)}")
         return nonces
 
     # Access nonces, Fill on-demand
@@ -408,7 +435,7 @@ class Oracle:
             # There are nonces
             return nonces
         # No nonces, generate now!
-        return self.generate_nonces(event)
+        return self.generate_and_insert_nonces(event)
 
     def get_outcome(self, event_id: str) -> Outcome | None:
         # get outcome (if any)
@@ -521,34 +548,133 @@ class Oracle:
     def get_price(self, symbol, time):
         return self.price_source.get_price_info(symbol, time).price
 
-    def _create_past_outcomes_time(self, current_time: float) -> int:
+    # Return the number of events modified, and the next time due
+    def _create_past_outcomes_time(self, current_time: float, event_too_old_threshold: int = 86400) -> tuple[int, int]:
         cnt = 0
         # past events without outcome
-        pe = self.db.events_get_past_no_outcome(current_time)
-        print(f"Found {len(pe)} events in the past without outcome")
-        for eid in pe:
-            e = self.get_event_obj_by_id(eid)
-            if e is None:
-                continue
+        past_events = self.db.events_get_past_no_outcome(current_time)
+        if len(past_events) == 0:
+            return (0, self.db.events_get_earliest_time_without_outcome())
+
+        # Filter out VERY old events
+        if event_too_old_threshold == 0:
+            events = past_events
+        else:
+            too_old_time = math.ceil(current_time - event_too_old_threshold)
+            cnt_too_old = 0
+            events = []
+            for eid in past_events:
+                e = self.get_event_obj_by_id(eid)
+                if e is None:
+                    continue
+                if e.dto.time >= too_old_time:
+                    events.append(e)
+                else:
+                    cnt_too_old += 1
+            if cnt_too_old > -0:
+                print(f"WARNING: There are {cnt_too_old} events that are too old and have no outcome! {event_too_old_threshold}")
+
+        if len(events) == 0:
+            return (0, self.db.events_get_earliest_time_without_outcome())
+        print(f"Found {len(events)} past events that need outcome")
+        for e in events:
             symbol = e.desc.definition
             value = self.get_price(symbol, current_time)
             try:
                 outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.signer_public_key, self.get_nonces(e))
-                self.db.digitoutcomes_insert(eid, outcome.digits)
+                self.db.digitoutcomes_insert(e.dto.event_id, outcome.digits)
                 self.db.outcomes_insert(outcome.dto)
             except Exception as ex:
-                print(f"Exception while creating outcome, {ex}")
+                print(f"EXCEPTION while creating outcome, {ex}")
                 # continue
             cnt += 1
-        if cnt > 0:
-            print(f"Created outcomes for {cnt} past events")
-            self.db.print_stats()
-        return cnt
+        if cnt == 0:
+            return (0, self.db.events_get_earliest_time_without_outcome())
+        print(f"Created outcomes for {cnt} past events")
+        self.print_stats()
+        return (cnt, self.db.events_get_earliest_time_without_outcome())
 
     def create_past_outcomes(self) -> int:
         now = datetime.now(UTC).timestamp()
-        print("Checking for past outcome generation ...", round(now))
-        return self._create_past_outcomes_time(now)
+        # print("Checking for past outcome generation ...", round(now))
+        return self._create_past_outcomes_time(now, event_too_old_threshold=EVENT_TOO_OLD_THRESHOLD)
+
+    # Return the number of events modified, and the next time due
+    def _create_future_events(self, current_time_orig: float, max_count = 10) -> tuple[int, int]:
+        ct = math.floor(current_time_orig)
+        horizon = ct + self.horizon_days * 86400
+
+        # Go by event classes
+        cnt = 0
+        earliest_next_event = 0
+        for ec in self.db.event_classes_get_all():
+            look_from = self.db.events_get_latest_time_for_def(ec.definition)
+            # print(look_from, look_from - ct)
+            if look_from == 0 or look_from is None:
+                look_from = ct
+            _ft, last_time = Oracle.compute_event_time_range(repeat_period=ec.repeat_period, repeat_offset=ec.repeat_offset, start_time=look_from, end_time=horizon)
+            # print(f"Checking range {_ft} -- {last_time}  {last_time - _ft}  {(last_time - _ft)/ec.repeat_period}  {ec.definition}")
+            # Iterate over times, check if event exists
+            t = _ft
+            while t <= last_time:
+                # Check if event exists
+                event_id = Event.event_id_from_class_and_time(ec, t)
+                e = self.db.events_get_by_id(event_id)
+                if e is None:
+                    print(f"Need to generate future event for '{ec.definition}' time {t} {t - ct}")
+                    assert(t % ec.repeat_period == ec.repeat_offset)
+                    # create event, also nonces
+                    try:
+                        ev = Event.new(event_class=EventClass(ec), time=t)
+                        assert(ev is not None)
+                        self.db.events_insert_if_missing(ev.dto, ec.signer_public_key)
+                        nonces = self.generate_and_insert_nonces(ev)
+                        assert(len(nonces) > 0)
+                    except Exception as ex:
+                        print(f"EXCEPTION while creating outcome, {ex}")
+                    cnt+=1
+                    if cnt >= max_count:
+                        break
+                else:
+                    # this time slot is filled
+                    next = t + ec.repeat_period
+                    if earliest_next_event == 0:
+                        earliest_next_event = next
+                    else:
+                        earliest_next_event = min(earliest_next_event, next)
+                t += ec.repeat_period
+            if cnt >= max_count:
+                break
+        # print(f"Future event check done, {cnt}")
+        if cnt > 0:
+            print(f"Generated {cnt} new future events")
+            self.print_stats()
+        return (cnt, earliest_next_event)
+
+    def create_future_events(self, max_count = 10) -> int:
+        now = datetime.now(UTC).timestamp()
+        return self._create_future_events(now, max_count=max_count)
+
+    def create_nonces(self, max_count = 100) -> int:
+        eids = self.db.events_get_ids_with_no_nonce(limit=max_count)
+        if len(eids) == 0:
+            return 0
+        # print(f"WARNING: Found at least {len(eids)} events with no nonces! Filling...")
+        cnt = 0
+        for eid in eids:
+            e = self.get_event_obj_by_id(eid)
+            if e is None:
+                continue
+            nonces = self.get_nonces(e)
+            assert(len(nonces) > 0)
+            cnt += 1
+            if cnt >= max_count:
+                break
+        if cnt > 0:
+            print(f"Tocuhed nonces for {cnt} events...")
+            self.db.print_stats()
+        return cnt
+
 
     # def dummy_outcome_for_event(self, event_id):
     #     e = self.get_event_obj_by_id(event_id)
@@ -568,38 +694,64 @@ class Oracle:
     #         print(f"Exception while generating dummy outcome, {ex}")
     #         return {}
 
-    def check_outcome_loop(self):
+    # Continuously check for:
+    # - events that has just became due and outcome is needed
+    # - new events that need to be generated at the expanding horizon
+    def check_outcome_loop(self, early_exit = False):
         print("check_outcome_loop started", round(datetime.now(UTC).timestamp()))
-        time.sleep(10)
         while True:
-            self.create_past_outcomes()
+            cnt, next1 = self.create_past_outcomes()
+            if cnt > 0:
+                continue
+
+            cnt, next2 = self.create_future_events(10)
+            if cnt > 0:
+                continue
+
+            if early_exit:
+                print("check_outcome_loop: all is fine, exiting")
+                break
+
+            # Wait some
+            next = next1
+            if next == 0:
+                next = next2
+            else:
+                if next2 != 0 and next2 < next:
+                    next = next2
             now = datetime.now(UTC).timestamp()
-            earliest = self.db.events_get_earliest_time_without_outcome()
-            # if there is no event without outcome, wait max
-            if earliest == 0 or earliest < now:
-                earliest = sys.maxsize - 10
-            # wait a bit for the next event, but limit wait to min/max values
-            towait_unbound = (earliest - now) / 2 - 1
-            towait = min(max(towait_unbound, 0.01), 300)
+            towait_unbound = (next - now) / 2 - 1
+            towait = min(max(towait_unbound, 0.01), 60)
+            # print(next1, next2, next, now, towait_unbound, towait)
             if towait > 0.5:
-                print("Sleeping for", towait, "(", round(towait_unbound), ") ...")
+                print(f"Sleeping for {round(towait, 3)} s (of {round(towait_unbound, 1)}) ...")
             time.sleep(towait)
+            # print(" ")
+
+
+    # Fill all event nonces, some may be missing (deferred)
+    def fill_nonces_all(self):
+        eids = self.db.events_get_ids_with_no_nonce(limit=10)
+        if len(eids) > 0:
+            print(f"WARNING: Found events with no nonces! Filling...")
+        while True:
+            c = self.create_nonces(1000)
+            if c == 0:
+                # None updated, stop
+                print("No nonces to fill, OK")
+                break
+            time.sleep(0.1)
+            continue
 
 
 class OracleApp:
     oracle: Oracle
 
     def __init__(self, data_dir: str = "."):
-        # Take location of secret file from dotenv
-        load_dotenv()
-        secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
-        secret_pass = os.getenv("KEY_SECRET_PWD", default="")
-
-        _xpub = dlcplazacryptlib.init(secret_file, secret_pass)
-        public_key = dlcplazacryptlib.get_public_key(0)
-        print("dlcplazacryptlib initialized, public key:", public_key)
-        self.oracle = Oracle.get_default_instance(public_key=public_key)
+        self.oracle = Oracle.get_default_instance(data_dir=data_dir)
         random.seed()
+        self.oracle.print_stats()
+        print("OracleApp instance created")
 
     def get_singleton_instance() -> Oracle:
         print("get_singleton_instance")
@@ -612,11 +764,12 @@ class OracleApp:
         app = OracleApp(data_dir=".")
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
-            _thread.start_new(outcome_loop_thread, (app.oracle, ))
+            _thread.start_new(outcome_loop_thread, (app.oracle,))
+            _thread.start_new(nonce_loop_thread, (app.oracle,))
         return app
 
     def get_oracle(self):
-        self.oracle
+        return self.oracle
 
     def get_current_price(self, symbol: str):
         now = datetime.now(UTC).timestamp()
@@ -647,5 +800,10 @@ class OracleApp:
 def outcome_loop_thread(oracle):
     global _outcome_loop_thread_started
     _outcome_loop_thread_started = True
-    oracle.check_outcome_loop()
+    time.sleep(1)
+    oracle.check_outcome_loop(early_exit=False)
+
+def nonce_loop_thread(oracle):
+    time.sleep(10)
+    oracle.fill_nonces_all()
 
