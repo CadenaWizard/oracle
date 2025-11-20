@@ -1,3 +1,6 @@
 # Location of the secret key file
 KEY_SECRET_FILE_NAME="./secret.sec"
 KEY_SECRET_PWD="<encryption_password_here>"
+
+# Horizon is the period in the future for which events are created in advance
+HORIZON_DAYS=396

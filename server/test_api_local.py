@@ -74,12 +74,12 @@ class ServerApiTestClass(unittest.TestCase):
         response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&end_time={end_time1}&definition=btcusd")
         self.assertEqual(response.status_code, 200)
         c = response.json()
-        self.assertEqual(len(c), 1440)
+        self.assertEqual(len(c), 721)
 
         response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&end_time={end_time1}")
         self.assertEqual(response.status_code, 200)
         c = response.json()
-        self.assertEqual(len(c), 1460)
+        self.assertEqual(len(c), 732)
 
         response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}&definition=btcusd")
         self.assertEqual(response.status_code, 200)
@@ -89,7 +89,7 @@ class ServerApiTestClass(unittest.TestCase):
         response = self.client.get(f"/api/v0/event/event_ids?end_time={end_time1}&definition=btcusd")
         self.assertEqual(response.status_code, 200)
         c = response.json()
-        self.assertEqual(len(c), 5000)
+        self.assertEqual(len(c), 721)
 
         response = self.client.get(f"/api/v0/event/event_ids?start_time={start_time1}")
         self.assertEqual(response.status_code, 200)
@@ -99,7 +99,7 @@ class ServerApiTestClass(unittest.TestCase):
         response = self.client.get(f"/api/v0/event/event_ids?end_time={end_time1}")
         self.assertEqual(response.status_code, 200)
         c = response.json()
-        self.assertEqual(len(c), 5000)
+        self.assertEqual(len(c), 732)
 
         response = self.client.get(f"/api/v0/event/event_ids?definition=btcusd")
         self.assertEqual(response.status_code, 200)

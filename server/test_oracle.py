@@ -34,6 +34,16 @@ class OracleTestClass(unittest.TestCase):
         o = Oracle(self.public_key, data_dir=".", price_source_override=price_mock)
         return o
 
+    def test_compute_event_time_range(self):
+        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 180)
+        self.assertEqual([f, l], [1762988400, 1778541000])
+        f, l = Oracle.compute_event_time_range(86400, 0, 1762988557, 180)
+        self.assertEqual([f, l], [1762905600, 1778544000])
+        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 360)
+        self.assertEqual([f, l], [1762988400, 1794093000])
+        f, l = Oracle.compute_event_time_range(600, 7, 1762988557, 180)
+        self.assertEqual([f, l], [1762988407, 1778541007])
+
     # Create Oracle
     def test_init(self):
         o = self.create_oracle()
