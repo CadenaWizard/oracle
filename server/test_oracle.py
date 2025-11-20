@@ -35,13 +35,13 @@ class OracleTestClass(unittest.TestCase):
         return o
 
     def test_compute_event_time_range(self):
-        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 180)
+        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 1762988557 + 180*86400)
         self.assertEqual([f, l], [1762988400, 1778541000])
-        f, l = Oracle.compute_event_time_range(86400, 0, 1762988557, 180)
+        f, l = Oracle.compute_event_time_range(86400, 0, 1762988557, 1762988557 + 180*86400)
         self.assertEqual([f, l], [1762905600, 1778544000])
-        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 360)
+        f, l = Oracle.compute_event_time_range(600, 0, 1762988557, 1762988557 + 360*86400)
         self.assertEqual([f, l], [1762988400, 1794093000])
-        f, l = Oracle.compute_event_time_range(600, 7, 1762988557, 180)
+        f, l = Oracle.compute_event_time_range(600, 7, 1762988557, 1762988557 + 180*86400)
         self.assertEqual([f, l], [1762988407, 1778541007])
 
     # Create Oracle
@@ -57,7 +57,7 @@ class OracleTestClass(unittest.TestCase):
     # Create Oracle and fill with event classes
     def test_load(self):
         o = self.create_oracle()
-        o.load_event_classes(self.event_classes)
+        o.load_event_classes(self.event_classes, defer_nonces=False)
         o.print_stats()
         self.assertEqual(o.db.event_classes_len(), 2)
         self.assertEqual(o.db.events_len(), 2 * 38)
@@ -104,7 +104,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(ev1['definition'], 'BTCEUR')
 
         # Nonces may change
-        self.assertEqual(len(ev1['nonces']), 14)
+        self.assertEqual(len(ev1['nonces']), 7)
         self.assertEqual(len(ev1['nonces'][0]), 66)
         del ev1['nonces']
         self.assertEqual(ev1, {
@@ -160,7 +160,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(filtered[0]['definition'], 'BTCUSD')
         self.assertEqual(filtered[0]['range_digits'], 7)
         self.assertEqual(filtered[0]['has_outcome'], False)
-        self.assertEqual(len(filtered[0]['nonces']), 14)
+        self.assertEqual(len(filtered[0]['nonces']), 7)
         self.assertEqual(len(filtered[0]['nonces'][0]), 66)
         self.assertEqual(filtered[len(filtered)-1]['event_id'], 'btcusd1763006400')
 
@@ -242,7 +242,7 @@ class OracleTestClass(unittest.TestCase):
         self.assertEqual(e1['has_outcome'], False)
 
         # Generate outcomes
-        cnt = o._create_past_outcomes_time(self.now)
+        cnt, _next_time = o._create_past_outcomes_time(self.now, event_too_old_threshold=100_000_000)
         self.assertEqual(cnt, 16)
 
         # get the event, should have outcome
