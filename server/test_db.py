@@ -114,21 +114,31 @@ class EventStorageTestClass(unittest.TestCase):
         db = self.create_db()
         db.print_stats()
 
+        event_class_id = "btcusd_class01"
         event_id = "ev_btcusd_02_007"
 
+        # make sure event class does not exit
+        self.assertIsNone(db.event_classes_get_by_id(event_class_id))
+        # make sure event does not exit
+        self.assertIsNone(db.events_get_by_id(event_id))
+
         o = OutcomeDto(event_id, 99999, self.start_time)
-        db.outcomes_insert(o)
+        self.assertRaises(Exception, db.outcomes_insert, (o,))
+        self.assertIsNone(db.outcomes_get(event_id))
 
         do = DigitOutcome(event_id, 3, 7, "nonce", "sig", "msg_str")
-        db.digitoutcomes_insert(event_id, [do])
+        self.assertRaises(Exception, db.digitoutcomes_insert, (event_id, [do]))
+        self.assertEqual(len(db.digitoutcomes_get(event_id)), 0)
 
-        n = Nonce(event_id, 3, "nonce_pubkey", "nonce_seckey")
-        db.nonces_insert([n])
+        nonces = Nonce(event_id, 3, "nonce_pubkey", "nonce_seckey")
+        self.assertRaises(Exception, db.nonces_insert, ([nonces],))
+        self.assertEqual(len(db.nonces_get(event_id)), 0)
 
-        event_class_id = "btcusd_class01"
         e = EventDto(event_id=event_id, class_id=event_class_id, definition="BTCUSD", time=self.start_time, string_template="template", signer_public_key_id=-1)
-        db.events_insert_if_missing(e, "signer_pubkey")
+        self.assertRaises(Exception, db.events_insert_if_missing, (e, "signer_pubkey"))
+        self.assertIsNone(db.events_get_by_id(event_id))
 
+        # Event class has no dependency
         repeat_time = 3600
         repeat_first_time = int(math.floor(self.start_time / repeat_time)) * repeat_time - 7 * repeat_time
         repeat_last_time = repeat_first_time + 37 * repeat_time
@@ -137,6 +147,31 @@ class EventStorageTestClass(unittest.TestCase):
             repeat_first_time=repeat_first_time, repeat_period=repeat_time, repeat_offset=0, repeat_last_time=repeat_last_time, signer_public_key="signer_pubkey"
         )
         db.event_classes_insert_if_missing(ec)
+        self.assertIsNotNone(db.event_classes_get_by_id(event_class_id))
+        self.assertEqual(db.event_classes_get_by_id(event_class_id).id, event_class_id)
+
+        # Event can go now
+        db.events_insert_if_missing(e, "signer_pubkey")
+        self.assertEqual(
+            db.events_get_by_id(event_id)[0].__dict__,
+            {'class_id': 'btcusd_class01', 'definition': 'BTCUSD', 'event_id': 'ev_btcusd_02_007', 'signer_public_key_id': 1, 'string_template': 'template', 'time': 1763000000}
+        )
+
+        # nonces can go now
+        db.nonces_insert([nonces])
+        self.assertEqual(len(db.nonces_get(event_id)), 1)
+        self.assertEqual(
+            db.nonces_get(event_id)[0].__dict__,
+            {'digit_index': 3, 'event_id': 'ev_btcusd_02_007', 'nonce_pub': 'nonce_pubkey', 'nonce_sec': 'nonce_seckey'}
+        )
+
+        # digit outcome can go now
+        db.digitoutcomes_insert(event_id, [do])
+        self.assertEqual(len(db.digitoutcomes_get(event_id)), 1)
+
+        # outcome can go now
+        db.outcomes_insert(o)
+        self.assertIsNotNone(db.outcomes_get(event_id))
 
         db.print_stats()
 

@@ -29,6 +29,10 @@ def recreate_empty_db_file():
     if os.path.exists(dbfile):
         os.remove(dbfile)
     conn = sqlite3.connect(dbfile)
+    # Explicitely enable Foreign Key support!
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = TRUE")
+    cursor.close()
     db_setup_from_to(conn)
     conn.close()
 
