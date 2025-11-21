@@ -51,8 +51,9 @@ def db_update_0_1(conn: sqlite3.Connection):
             SignerPublicKey VARCHAR(100)
         )
     """)
-    cursor.execute("CREATE INDEX EcId ON EVENTCLASS (Id)")
-    cursor.execute("CREATE INDEX EcDefinition ON EVENTCLASS (Definition)")
+    cursor.execute("CREATE INDEX EcId ON EVENTCLASS(Id)")
+    cursor.execute("CREATE INDEX EcCreateTime ON EVENTCLASS(CreateTime)")
+    cursor.execute("CREATE INDEX EcDefinition ON EVENTCLASS(Definition)")
 
     cursor.execute("""
         CREATE TABLE PUBKEY (
@@ -60,8 +61,8 @@ def db_update_0_1(conn: sqlite3.Connection):
             Pubkey VARCHAR(100)
         )
     """)
-    cursor.execute("CREATE INDEX PubkeyId ON PUBKEY (Id)")
-    cursor.execute("CREATE INDEX PubkeyPubkey ON PUBKEY (Pubkey)")
+    cursor.execute("CREATE INDEX PubkeyId ON PUBKEY(Id)")
+    cursor.execute("CREATE INDEX PubkeyPubkey ON PUBKEY(Pubkey)")
 
     cursor.execute("""
         CREATE TABLE EVENT (
@@ -75,22 +76,24 @@ def db_update_0_1(conn: sqlite3.Connection):
             FOREIGN KEY (PublicKeyId) REFERENCES PUBKEY(Id)
         )
     """)
-    cursor.execute("CREATE INDEX EvEventId ON EVENT (EventId)")
-    cursor.execute("CREATE INDEX EvClassId ON EVENT (ClassId)")
-    cursor.execute("CREATE INDEX EvDefinition ON EVENT (Definition)")
+    cursor.execute("CREATE INDEX EvEventId ON EVENT(EventId)")
+    cursor.execute("CREATE INDEX EvClassId ON EVENT(ClassId)")
+    cursor.execute("CREATE INDEX EvDefinition ON EVENT(Definition)")
+    cursor.execute("CREATE INDEX EvTime ON EVENT(Time)")
+    cursor.execute("CREATE INDEX EvPubkeyId ON EVENT(PublicKeyId)")
 
-    # TODO EventId should be a FOREIGN KEY
     cursor.execute("""
         CREATE TABLE NONCE (
             EventId VARCHAR(100),
             DigitIndex INTEGER,
             NoncePub VARCHAR(100),
-            NonceSec VARCHAR(100)
+            NonceSec VARCHAR(100),
+            FOREIGN KEY (EventId) REFERENCES EVENT (EventId)
         )
     """)
-    cursor.execute("CREATE INDEX NonceEventId ON NONCE (EventId)")
+    cursor.execute("CREATE INDEX NonceEventId ON NONCE(EventId)")
+    cursor.execute("CREATE INDEX NonceIndex ON NONCE(DigitIndex)")
 
-    # TODO EventId should be a FOREIGN KEY
     cursor.execute("""
         CREATE TABLE DIGITOUTCOME (
             EventId VARCHAR(100),
@@ -98,20 +101,23 @@ def db_update_0_1(conn: sqlite3.Connection):
             Value INTEGER,
             Nonce VARCHAR(100),
             Signature VARCHAR(100),
-            MsgStr VARCHAR(100)
+            MsgStr VARCHAR(100),
+            FOREIGN KEY (EventId) REFERENCES EVENT (EventId)
         )
     """)
-    cursor.execute("CREATE INDEX DOEventId ON DIGITOUTCOME (EventId)")
+    cursor.execute("CREATE INDEX DOEventId ON DIGITOUTCOME(EventId)")
+    cursor.execute("CREATE INDEX DOIdx ON DIGITOUTCOME(Idx)")
 
-    # TODO EventId should be a FOREIGN KEY
     cursor.execute("""
         CREATE TABLE OUTCOME (
             EventId VARCHAR(100),
             Value INTEGER,
-            CreatedTime INTEGER
+            CreatedTime INTEGER,
+            FOREIGN KEY (EventId) REFERENCES EVENT (EventId)
         )
     """)
-    cursor.execute("CREATE INDEX OutcEventId ON OUTCOME (EventId)")
+    cursor.execute("CREATE INDEX OutcEventId ON OUTCOME(EventId)")
+    cursor.execute("CREATE INDEX OutcCTime ON OUTCOME(CreatedTime)")
 
     # Commit changes and close connection
     conn.commit()
@@ -277,8 +283,16 @@ def db_nonce_insert_one(cursor: sqlite3.Cursor, nonce: Nonce):
         INSERT INTO NONCE 
             (EventId, DigitIndex, NoncePub, NonceSec)
             VALUES (?, ?, ?, ?)
+            RETURNING EventId
     """, (nonce.event_id, nonce.digit_index, nonce.nonce_pub, nonce.nonce_sec))
-    # eventual error not checked
+    rows = cursor.fetchall()
+    if len(rows) >= 1:
+        if len(rows[0]) >= 1:
+            if rows[0][0] is not None:
+                if rows[0][0] == nonce.event_id:
+                    # OK
+                    return
+    raise Exception(f"Failed to insert Nonce, '{nonce.event_id}'!")
 
 
 def db_nonce_get_all_by_id(cursor: sqlite3.Cursor, event_id: str) -> list[Nonce]:
@@ -307,8 +321,16 @@ def db_digitoutcome_insert_list(cursor: sqlite3.Cursor, event_id: str, digit_out
             INSERT INTO DIGITOUTCOME
                 (EventId, Idx, Value, Nonce, Signature, MsgStr)
                 VALUES (?, ?, ?, ?, ?, ?)
+                RETURNING EventId
         """, (event_id, do.index, int(do.value), do.nonce, do.signature, do.msg_str))
-        # eventual error not checked
+        rows = cursor.fetchall()
+        if len(rows) >= 1:
+            if len(rows[0]) >= 1:
+                if rows[0][0] is not None:
+                    if rows[0][0] == event_id:
+                        # OK
+                        continue
+        raise Exception(f"Failed to insert digit outcome, '{event_id}'!")
 
 
 def db_digitoutcome_get_all_by_id(cursor: sqlite3.Cursor, event_id: str) -> list[DigitOutcome]:
@@ -336,8 +358,16 @@ def db_outcome_insert(cursor: sqlite3.Cursor, o: OutcomeDto):
         INSERT INTO OUTCOME
             (EventId, Value, CreatedTime)
             VALUES (?, ?, ?)
+            RETURNING EventId
     """, (o.event_id, o.value, o.created_time))
-    # eventual error not checked
+    rows = cursor.fetchall()
+    if len(rows) >= 1:
+        if len(rows[0]) >= 1:
+            if rows[0][0] is not None:
+                if rows[0][0] == o.event_id:
+                    # OK
+                    return
+    raise Exception(f"Failed to insert Nonce, '{o.event_id}'!")
 
 
 def db_outcome_get_by_id(cursor: sqlite3.Cursor, event_id: str) -> OutcomeDto | None:
@@ -588,6 +618,10 @@ class EventStorageDb:
     def _open_rw(self) -> sqlite3.Connection:
         dbfile = get_db_file(self.db_file_name, self.data_dir, create_mode=False)
         conn = sqlite3.connect(dbfile)
+        # Explicitely enable Foreign Key support on all RW connections!
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = TRUE")
+        cursor.close()
         print("DB opened rw")
         return conn
 
@@ -702,6 +736,7 @@ class EventStorageDb:
         cursor = self._getcursor_ro()
         return db_nonce_get_all_by_id(cursor, event_id)
 
+    # Insert an event. It also inserts the public key if needed
     def events_insert_if_missing(self, e: EventDto, signer_public_key: str) -> int:
         conn = self._getconn_rw()
         cursor = conn.cursor()

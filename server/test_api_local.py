@@ -23,14 +23,6 @@ class ServerApiTestClass(unittest.TestCase):
         oracle_app.oracle.price_source = price_mock
         print("Server started")
 
-    # def recreate_db(self):
-    #     print(f"Temp DB used: {self.dbfile}")
-    #     if os.path.isfile(self.dbfile):
-    #         os.remove(self.dbfile)
-    #     conn = sqlite3.connect(self.dbfile)
-    #     db_ws.db_setup_1(conn)
-    #     conn.close()
-
     def test_oracle_info(self):
         response = self.client.get("/api/v0/oracle/oracle_info")
         self.assertEqual(response.status_code, 200)

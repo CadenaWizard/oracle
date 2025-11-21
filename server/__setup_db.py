@@ -18,6 +18,10 @@ if input.upper() != "Y":
 
 # Connect to SQLite database
 conn = sqlite3.connect(dbfile)
+# Explicitely enable Foreign Key support!
+cursor = conn.cursor()
+cursor.execute("PRAGMA foreign_keys = TRUE")
+cursor.close()
 db_setup(conn)
 conn.close()
 
