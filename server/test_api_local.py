@@ -1,7 +1,9 @@
+from oracle import EventStorageDb
 from test_common import PriceSourceMockConstant, prepare_test_secret_for_cryptlib, recreate_empty_db_file
 
 from datetime import datetime, UTC
 from fastapi.testclient import TestClient
+import os
 import unittest
 
 
@@ -12,15 +14,23 @@ class ServerApiTestClass(unittest.TestCase):
 
         prepare_test_secret_for_cryptlib()
 
-        recreate_empty_db_file()
+        datadir = "/tmp"
+        os.environ["DB_DIR"] = datadir
+        recreate_empty_db_file(datadir + "/ora.db")
 
         # Trick here: only import these after setting up the secret file
         from main import app, oracle_app
 
         price_mock = PriceSourceMockConstant(98765)
         cls.client = TestClient(app=app)
+
+        # Overrides
+        # Re-create EventStoreDb, with specified datadir
+        oracle_app.oracle.db = EventStorageDb(data_dir=datadir)
         # Overwrite the price source inside the app
         oracle_app.oracle.price_source = price_mock
+        # Fill with default data for, for the test
+        oracle_app.oracle.initialize_with_default_data(oracle_app.oracle.public_key)
         print("Server started")
 
     def test_oracle_info(self):

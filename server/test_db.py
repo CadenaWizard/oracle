@@ -20,9 +20,10 @@ class EventStorageTestClass(unittest.TestCase):
 
     # Helper to create storage instance
     def create_db(self):
-        recreate_empty_db_file()
+        datadir = "/tmp"
+        recreate_empty_db_file(datadir + "/ora.db")
 
-        db = EventStorageDb(data_dir=".")
+        db = EventStorageDb(data_dir=datadir)
         return db
 
     def test_init(self):

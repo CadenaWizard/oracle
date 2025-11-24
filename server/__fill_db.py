@@ -4,7 +4,7 @@ import sys
 
 def do_fill_db():
     pubkey = Oracle.initialize_cryptlib()
-    o = Oracle(public_key=pubkey, data_dir=".")
+    o = Oracle(public_key=pubkey)
     o.print_stats()
     print(f"\nOracle instance created\n")
 
