@@ -255,7 +255,15 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key, data_dir: str = ".", price_source_override = None):
+    def __init__(self, public_key, data_dir_override: str = None, price_source_override = None):
+        load_dotenv()
+        # DB dir, from .env, or override
+        data_dir = None
+        if data_dir_override is not None:
+            data_dir = data_dir_override
+        else:
+            data_dir = os.getenv("DB_DIR", ".")
+
         # Horizon, from dotenv
         self.horizon_days = float(os.getenv("HORIZON_DAYS", 390))
         print(f"Horizon setting: {self.horizon_days} days")
@@ -384,9 +392,9 @@ class Oracle:
         self.load_event_classes(default_event_classes, defer_nonces=True)
         self.print_stats()
 
-    def get_default_instance(data_dir: str = "."):
+    def get_default_instance(data_dir_override = None):
         public_key = Oracle.initialize_cryptlib()
-        o = Oracle(public_key=public_key, data_dir=data_dir)
+        o = Oracle(public_key=public_key, data_dir_override=data_dir_override)
         # TODO No need to reinitialize if DB is persisted
         o.initialize_with_default_data(public_key)
         return o
@@ -747,8 +755,8 @@ class Oracle:
 class OracleApp:
     oracle: Oracle
 
-    def __init__(self, data_dir: str = "."):
-        self.oracle = Oracle.get_default_instance(data_dir=data_dir)
+    def __init__(self, data_dir_override = None):
+        self.oracle = Oracle.get_default_instance(data_dir_override=data_dir_override)
         random.seed()
         self.oracle.print_stats()
         print("OracleApp instance created")
@@ -761,7 +769,7 @@ class OracleApp:
         return _singleton_app_instance
 
     def create_default_app_instance() -> Oracle:
-        app = OracleApp(data_dir=".")
+        app = OracleApp(data_dir_override=None)
         global _outcome_loop_thread_started
         if not _outcome_loop_thread_started:
             _thread.start_new(outcome_loop_thread, (app.oracle,))

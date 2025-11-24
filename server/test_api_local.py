@@ -3,6 +3,7 @@ from test_common import PriceSourceMockConstant, prepare_test_secret_for_cryptli
 
 from datetime import datetime, UTC
 from fastapi.testclient import TestClient
+import os
 import unittest
 
 
@@ -14,6 +15,7 @@ class ServerApiTestClass(unittest.TestCase):
         prepare_test_secret_for_cryptlib()
 
         datadir = "/tmp"
+        os.environ["DB_DIR"] = datadir
         recreate_empty_db_file(datadir + "/ora.db")
 
         # Trick here: only import these after setting up the secret file

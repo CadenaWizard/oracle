@@ -32,7 +32,7 @@ class OracleTestClass(unittest.TestCase):
 
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, data_dir=datadir, price_source_override=price_mock)
+        o = Oracle(self.public_key, data_dir_override=datadir, price_source_override=price_mock)
         return o
 
     def test_compute_event_time_range(self):

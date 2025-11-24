@@ -1,3 +1,6 @@
+# DB folder
+DB_DIR="."
+
 # Location of the secret key file
 KEY_SECRET_FILE_NAME="./secret.sec"
 KEY_SECRET_PWD="<encryption_password_here>"
