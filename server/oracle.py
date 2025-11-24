@@ -412,7 +412,7 @@ class Oracle:
     def get_sample_instance(pubkey):
         o = Oracle(pubkey)
         # ev = EventClass.get_sample_instance()
-        start_time = 1704067200 + 17 * 30 * 86400
+        start_time = 1704067200 + 19 * 30 * 86400
         end_time = start_time + 18 * 30 * 86400
         o.load_event_classes(event_classes=[
             EventClass("btcusd", "BTCUSD", 7, 0, start_time, 10 * 60, end_time),
