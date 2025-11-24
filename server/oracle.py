@@ -395,8 +395,7 @@ class Oracle:
     def get_default_instance(data_dir_override = None):
         public_key = Oracle.initialize_cryptlib()
         o = Oracle(public_key=public_key, data_dir_override=data_dir_override)
-        # TODO No need to reinitialize if DB is persisted
-        o.initialize_with_default_data(public_key)
+        # Note: Do NOT reinitialize DB, use persisted
         return o
 
     # Get event classes
