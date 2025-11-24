@@ -27,11 +27,12 @@ class OracleTestClass(unittest.TestCase):
 
     # Helper to create oracle instance
     def create_oracle(self):
-        recreate_empty_db_file()
+        datadir = "/tmp"
+        recreate_empty_db_file(datadir + "/ora.db")
 
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, data_dir=".", price_source_override=price_mock)
+        o = Oracle(self.public_key, data_dir=datadir, price_source_override=price_mock)
         return o
 
     def test_compute_event_time_range(self):

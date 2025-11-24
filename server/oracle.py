@@ -671,7 +671,7 @@ class Oracle:
             if cnt >= max_count:
                 break
         if cnt > 0:
-            print(f"Tocuhed nonces for {cnt} events...")
+            print(f"Touched nonces for {cnt} events...")
             self.db.print_stats()
         return cnt
 

@@ -24,8 +24,7 @@ def prepare_test_secret_for_cryptlib():
     os.environ["KEY_SECRET_PWD"] = "password"
 
 
-def recreate_empty_db_file():
-    dbfile = "./ora.db"
+def recreate_empty_db_file(dbfile: str = "./ora.db"):
     if os.path.exists(dbfile):
         os.remove(dbfile)
     conn = sqlite3.connect(dbfile)
