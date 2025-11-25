@@ -561,7 +561,7 @@ class Oracle:
         # past events without outcome
         past_events = self.db.events_get_past_no_outcome(current_time)
         if len(past_events) == 0:
-            return (0, self.db.events_get_earliest_time_without_outcome())
+            return (0, self.db.events_get_earliest_time_without_outcome(current_time))
 
         # Filter out VERY old events
         if event_too_old_threshold == 0:
@@ -579,10 +579,10 @@ class Oracle:
                 else:
                     cnt_too_old += 1
             if cnt_too_old > -0:
-                print(f"WARNING: There are {cnt_too_old} events that are too old and have no outcome! {event_too_old_threshold}")
+                print(f"WARNING: There are {cnt_too_old} events that are too old and have no outcome! {event_too_old_threshold} {len(events)}")
 
         if len(events) == 0:
-            return (0, self.db.events_get_earliest_time_without_outcome())
+            return (0, self.db.events_get_earliest_time_without_outcome(current_time))
         print(f"Found {len(events)} past events that need outcome")
         for e in events:
             symbol = e.desc.definition
@@ -596,10 +596,10 @@ class Oracle:
                 # continue
             cnt += 1
         if cnt == 0:
-            return (0, self.db.events_get_earliest_time_without_outcome())
+            return (0, self.db.events_get_earliest_time_without_outcome(current_time))
         print(f"Created outcomes for {cnt} past events")
         self.print_stats()
-        return (cnt, self.db.events_get_earliest_time_without_outcome())
+        return (cnt, self.db.events_get_earliest_time_without_outcome(current_time))
 
     def create_past_outcomes(self) -> int:
         now = datetime.now(UTC).timestamp()
@@ -726,6 +726,7 @@ class Oracle:
             else:
                 if next2 != 0 and next2 < next:
                     next = next2
+            # print(next1, next2, next)
             now = datetime.now(UTC).timestamp()
             towait_unbound = (next - now) / 2 - 1
             towait = min(max(towait_unbound, 0.01), 60)
