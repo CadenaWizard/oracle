@@ -5,6 +5,7 @@
 from db_infra import get_db_file, print_current_db_version
 from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
 
+import math
 import sqlite3
 import sys
 import threading
@@ -458,14 +459,15 @@ def db_event_get_by_id(cursor: sqlite3.Cursor, event_id: str) -> tuple[EventDto,
     return _db_event_from_row(rows[0])
 
 
-def db_event_get_earliest_time_without_outcome(cursor: sqlite3.Cursor) -> int:
+def db_event_get_earliest_time_without_outcome(cursor: sqlite3.Cursor, after_time: int) -> int:
     cursor.execute("""
         SELECT MIN(EVENT.Time)
         FROM EVENT
         LEFT OUTER JOIN OUTCOME ON EVENT.EventId == OUTCOME.EventId
         WHERE OUTCOME.EventId IS NULL
+        AND EVENT.Time >= ?
         ORDER BY EVENT.Time ASC
-    """)
+    """, (after_time,))
     rows = cursor.fetchall()
     # print(rows)
     if len(rows) < 1:
@@ -769,9 +771,9 @@ class EventStorageDb:
         return db_event_get_by_id(cursor, event_id)
 
     # Get the time of the earliest event without outcome
-    def events_get_earliest_time_without_outcome(self) -> int:
+    def events_get_earliest_time_without_outcome(self, after_time: float) -> int:
         cursor = self._getcursor_ro()
-        return db_event_get_earliest_time_without_outcome(cursor)
+        return db_event_get_earliest_time_without_outcome(cursor, after_time=math.floor(after_time))
 
     # Get (the ID of) events in the past with no outcome
     def events_get_past_no_outcome(self, now) -> list[str]:
@@ -952,10 +954,13 @@ class EventStorage:
         return [e, self._pubkeys[e.signer_public_key_id]]
 
     # Get the time of the earliest event without outcome
-    def events_get_earliest_time_without_outcome(self) -> int:
+    def events_get_earliest_time_without_outcome(self, time_after: float) -> int:
+        time_after = math.floor(time_after)
         t = 0
         for eid, e in self._events.items():
             if self.outcomes_exists(eid):
+                continue
+            if e.time < time_after:
                 continue
             if t == 0:
                 t = e.time

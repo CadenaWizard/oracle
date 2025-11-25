@@ -227,7 +227,7 @@ class EventStorageTestClass(unittest.TestCase):
                 dos.append(do)
             db.digitoutcomes_insert(event_id, dos)
 
-        earliest_time = db.events_get_earliest_time_without_outcome()
+        earliest_time = db.events_get_earliest_time_without_outcome(event_class.repeat_first_time)
         self.assertEqual(earliest_time, 1763002800)
 
         self.assertEqual(db.events_get_past_no_outcome(events[5].time + 1000), ["ev_btcusd_01_008", "ev_btcusd_01_009", "ev_btcusd_01_0010"])
