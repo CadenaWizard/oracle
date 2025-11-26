@@ -39,13 +39,33 @@ python3 ./dlcplazacryptlib/save_secret.py --set --file secret.sec
 Enter your securely generated secret mnemonic, be sure to back it up!
 
 
-Start the server:
+Prepare `.env` file; copy sample and change settings as needed:
+
+```shell
+cp env-sample .env
 ```
+
+
+Create the empty initial DB:
+```shell
+python3 ./server/__setup_db.py
+```
+
+then, if all fine:
+
+```shell
+mv ./ora.db ./oda.BAK.db
+mv ./_new_ora.db ./ora.db
+```
+
+
+Start the server:
+```shell
 ./start_oracle_server_dev.sh
 ```
 (or: )
 ```
-fastapi dev server/main.py
+fastapi run server/main.py
 ```
 
 See status
@@ -65,6 +85,10 @@ See demo web page:
 http://localhost:8000/demo/
 
 
+Run some tests:
+```
+python ./server/test_oracle.py
+```
 
 ## High-level API Description
 
@@ -87,5 +111,5 @@ http://localhost:8000/demo/
 
 ### Testing
 
-- Get forced premature test outcome for a future event (using dummy price)
+- [Removed] Get forced premature test outcome for a future event (using dummy price)
 

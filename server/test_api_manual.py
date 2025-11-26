@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 import requests
-import time
+from datetime import datetime, UTC
 
 URL_BASE = "http://localhost:8000/api/v0/"
 
@@ -22,7 +22,7 @@ test_call("oracle/oracle_status")
 
 test_call("event/event_classes")
 
-now = int(time.time())
+now = round(datetime.now(UTC).timestamp())
 start_time1 = now + 7 * 24*3600
 end_time1 = start_time1 + 2 * 24*3600
 test_call("event/events?start_time={}&end_time={}&definition=btceur".format(start_time1, end_time1))

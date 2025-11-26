@@ -7,6 +7,8 @@ data/
 data/*.json
 data/*.yaml
 documentation/devkeys.txt
+ora.db
+*.db
 
 # These are some examples of commonly ignored file patterns.
 # You should customize this list as applicable to your project.
@@ -208,4 +210,4 @@ cython_debug/
 config.py
 
 *.sec
-
+!testdata/*.sec

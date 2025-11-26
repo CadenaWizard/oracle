@@ -3,9 +3,10 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from price_common import PriceInfo
+
+from datetime import datetime, UTC
 import json
 import requests
-import time
 
 BINANCE_CACHE_FOR_SECS: int = 30
 
@@ -32,7 +33,7 @@ class BinancePriceSource:
         print("Binance price source initialized,", self.global_or_us, "host", self.host, "src", self.source, "url", self.url_root)
 
     def get_price_info(self, symbol: str, dummy_time) -> float:
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
 
         # symbol specific processing
         if symbol.upper() == "BTCUSD":

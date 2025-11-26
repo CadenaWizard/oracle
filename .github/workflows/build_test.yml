@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop", "staging" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop", "staging" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Set up Python
-      run: sudo apt-get install python3
+      run: sudo apt-get install python3 python3-dev
     - name: Set up Rust
       run: sudo apt-get install cargo && rustup override set 1.81
     - uses: actions/checkout@v4
@@ -27,5 +27,10 @@ jobs:
     - name: Build the internal Rust library, install it as a Python module
       run: cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
     - name: Run unit tests
-      run: ./venv/bin/python3 ./server/test_dto.py
+      run: |
+        ./venv/bin/python3 ./server/test_api_local.py
+        ./venv/bin/python3 ./server/test_db.py
+        ./venv/bin/python3 ./server/test_event.py
+        ./venv/bin/python3 ./server/test_oracle.py
+        ./venv/bin/python3 ./server/test_util.py
 

@@ -3,9 +3,9 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from price_common import PriceInfo
+from datetime import datetime, UTC
 import json
 import requests
-import time
 
 BITSTAMP_URL_ROOT: str = "https://www.bitstamp.net/api/v2/ticker/"
 BITSTAMP_CACHE_FOR_SECS: int = 30
@@ -19,7 +19,7 @@ class BitstampPriceSource:
         self.cache = {}
 
     def get_price_info(self, symbol: str, dummy_time) -> float:
-        now = time.time()
+        now = datetime.now(UTC).timestamp()
 
         # symbol specific processing
         if symbol.upper() == "BTCUSD":
