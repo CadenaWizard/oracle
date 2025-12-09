@@ -63,14 +63,14 @@ class PriceSource:
             p = valpis[0].price
             t = valpis[0].retrieve_time
         else:
-            # multiple valid prices, take average
+            # multiple valid prices, take average. Time is oldest
             sp = 0
-            st = 0
+            t = valpis[0].retrieve_time
             for i in range(len(valpis)):
                 sp += valpis[i].price
-                st += valpis[i].retrieve_time
+                if valpis[i].retrieve_time < t:
+                    t = valpis[i].retrieve_time
             p = sp / float(valc)
-            t = st / float(valc)
         return PriceInfo(p, symbol, t, src, price_infos, None)
 
     def aggregate_source(valid_count, valid_sources, invalid_sources):

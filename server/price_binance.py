@@ -8,7 +8,7 @@ from datetime import datetime, UTC
 import json
 import requests
 
-BINANCE_CACHE_FOR_SECS: int = 30
+BINANCE_CACHE_FOR_SECS: int = 15
 
 # Get rate price info from Binance, and cache it for a while
 # E.g. https://api3.binance.com/api/v3/ticker/price?symbol=BTCEUR
@@ -47,20 +47,16 @@ class BinancePriceSource:
 
         if symbol in self.cache:
             cached = self.cache[symbol]
-            age = now - cached["t"]
+            age = now - cached.retrieve_time
             if age < BINANCE_CACHE_FOR_SECS:
                 # print("Using cached value", cached["pi"].price, cached)
-                return cached["pi"]
+                return cached
         # Not cached, get it now
         price = self.do_get_price(symbol)
         pi = PriceInfoSingle(price, symbol, now, self.source)
         # Cache it
         # Note: also cache errored info
-        cached = {
-            "t": now,
-            "pi": pi
-        }
-        self.cache[symbol] = cached
+        self.cache[symbol] = pi
         # print("Saved value to cache", cached["pi"].price, cached)
         return pi
 

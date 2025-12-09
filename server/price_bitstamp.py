@@ -8,7 +8,7 @@ import json
 import requests
 
 BITSTAMP_URL_ROOT: str = "https://www.bitstamp.net/api/v2/ticker/"
-BITSTAMP_CACHE_FOR_SECS: int = 30
+BITSTAMP_CACHE_FOR_SECS: int = 15
 
 # Get rate price info from Bitstamp, and cache it for a while
 # E.g. https://www.bitstamp.net/api/v2/ticker/btceur
@@ -29,20 +29,16 @@ class BitstampPriceSource:
 
         if symbol in self.cache:
             cached = self.cache[symbol]
-            age = now - cached["t"]
+            age = now - cached.retrieve_time
             if age < BITSTAMP_CACHE_FOR_SECS:
                 # print("Using cached value", cached["pi"].price, cached)
-                return cached["pi"]
+                return cached
         # Not cached, get it now
         price = BitstampPriceSource.do_get_price(symbol)
         pi = PriceInfoSingle(price, symbol, now, "Bitstamp")
         # Cache it
         # Note: also cache errored info
-        cached = {
-            "t": now,
-            "pi": pi
-        }
-        self.cache[symbol] = cached
+        self.cache[symbol] = pi
         # print("Saved value to cache", cached["pi"].price, cached)
         return pi
 
