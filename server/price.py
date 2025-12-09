@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from price_common import PriceInfo
+from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
 from datetime import datetime, UTC
@@ -32,7 +32,7 @@ class PriceSource:
         price_info = PriceSource.aggregate_infos(price_infos, symbol, preferred_time)
         return price_info
 
-    def aggregate_infos(price_infos: [PriceInfo], symbol, preferred_time):
+    def aggregate_infos(price_infos: list[PriceInfoSingle], symbol, preferred_time):
         # separate valid and invalid ones
         valc = 0
         invc = 0
@@ -41,7 +41,7 @@ class PriceSource:
         valpis = []
         for i in range(len(price_infos)):
             pi = price_infos[i]
-            if pi.price == 0:
+            if pi.price == 0 or pi.error:
                 invc += 1
                 if len(invs) > 0:
                     invs += ","
@@ -55,7 +55,7 @@ class PriceSource:
         src = PriceSource.aggregate_source(valc, vals, invs)
         if valc == 0:
             # no valid price
-            return PriceInfo(0, symbol, preferred_time, src)
+            return PriceInfo.create_with_error(symbol, preferred_time, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
         t = 0
         if valc == 1:
@@ -71,7 +71,7 @@ class PriceSource:
                 st += valpis[i].retrieve_time
             p = sp / float(valc)
             t = st / float(valc)
-        return PriceInfo(p, symbol, t, src)
+        return PriceInfo(p, symbol, t, src, price_infos, None)
 
     def aggregate_source(valid_count, valid_sources, invalid_sources):
         s = "Multi{cnt:" + str(valid_count) + ","

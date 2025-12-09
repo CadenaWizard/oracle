@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from price_common import PriceInfo
+from price_common import PriceInfoSingle
 from datetime import datetime, UTC
 import json
 import requests
@@ -35,7 +35,7 @@ class BitstampPriceSource:
                 return cached["pi"]
         # Not cached, get it now
         price = BitstampPriceSource.do_get_price(symbol)
-        pi = PriceInfo(price, symbol, now, "Bitstamp")
+        pi = PriceInfoSingle(price, symbol, now, "Bitstamp")
         # Cache it
         # Note: also cache errored info
         cached = {

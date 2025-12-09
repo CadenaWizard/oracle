@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from price_common import PriceInfo
+from price_common import PriceInfoSingle
 
 from datetime import datetime, UTC
 import json
@@ -41,7 +41,7 @@ class BinancePriceSource:
         if symbol.upper() == "BTCEUR":
             if not self.global_or_us:
                 # US has no EUR
-                return PriceInfo(0, symbol, dummy_time, self.source)
+                return PriceInfoSingle.create_with_error(symbol, now, self.source, f"Symbol not supported in this region, {symbol}")
             else:
                 symbol = "BTCEUR"
 
@@ -53,7 +53,7 @@ class BinancePriceSource:
                 return cached["pi"]
         # Not cached, get it now
         price = self.do_get_price(symbol)
-        pi = PriceInfo(price, symbol, now, self.source)
+        pi = PriceInfoSingle(price, symbol, now, self.source)
         # Cache it
         # Note: also cache errored info
         cached = {
