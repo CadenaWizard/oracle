@@ -5,9 +5,10 @@
 from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
+from price_kraken import KrakenPriceSource
 
 from datetime import datetime, UTC
-import _thread;
+import threading;
 
 PREFETCH_MIN_ACCEPTED_AGE_SECS: int = 15
 PREFETCH_PREF_MAX_AGE_SECS: int = 2
@@ -18,6 +19,7 @@ class PriceSource:
         self.bitstamp_source = BitstampPriceSource()
         # binance_global_source = BinancePriceSource(True)
         self.binance_us_source = BinancePriceSource(False)
+        self.kraken_source = KrakenPriceSource()
 
     def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]
@@ -31,24 +33,47 @@ class PriceSource:
         age = now - price_info.retrieve_time
         # print(f"Age: {age}")
         if age > max(PREFETCH_MIN_ACCEPTED_AGE_SECS, pref_max_age / 2):
-            _thread.start_new(self.bg_prefetch, (symbol,))
+            th1 = threading.Thread(target=self._bg_prefetch, args=(symbol,))
+            th1.start() # fire and forget
 
         return price_info
 
     def get_price_info_internal(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
         symbol = symbol.upper()
-        price_infos = []
 
-        # TODO parallelize
-        price_infos.append(self.bitstamp_source.get_price_info(symbol, pref_max_age))
-        # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
-        price_infos.append(self.binance_us_source.get_price_info(symbol, pref_max_age))
+        # Invoke in parallel
+        sources = [
+            self.bitstamp_source,
+            self.binance_us_source,
+            self.kraken_source,
+            # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
+        ]
+        n = len(sources)
+        thids = []
+        price_infos = [None] * n
+        for i in range(n):
+            th = threading.Thread(target=self._bg_get_price, args=(sources[i], symbol, pref_max_age, price_infos, i))
+            thids.append(th)
+            th.start()
+        # Wait for all
+        for i in range(n):
+            thids[i].join()
 
         # Aggregate info from multiple sources
         price_info = PriceSource.aggregate_infos(price_infos, symbol)
         return price_info
 
-    def bg_prefetch(self, symbol):
+    def _bg_get_price(self, price_source, symbol, pref_max_age, result_arr, index):
+        try:
+            price_info = price_source.get_price_info(symbol, pref_max_age)
+        except Exception as ex:
+            now = datetime.now(UTC).timestamp()
+            price_info = PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Exception while getting price {ex}")
+        result_arr[index] = price_info
+        # print(index, len(result_arr), result_arr[index])
+        return
+
+    def _bg_prefetch(self, symbol):
         # print(f"Prefetch in background ...")
         _pi = self.get_price_info_internal(symbol, pref_max_age=PREFETCH_PREF_MAX_AGE_SECS)
         # now = datetime.now(UTC).timestamp()
