@@ -19,6 +19,8 @@ class PriceInfoSingle:
         self.claimed_time = claimed_time
         self.source = source
         self.error = error
+        # Delta from aggregate, set only in case part of an aggregate
+        self.delta_from_aggr = 0
 
     def create_with_error(symbol: str, retrieve_time: float, source: str, error: str):
         return PriceInfoSingle(0, symbol, retrieve_time, 0, source, error)
