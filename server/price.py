@@ -23,6 +23,7 @@ class PriceSource:
         symbol = symbol.upper()
         price_infos = []
 
+        # TODO parallelize
         price_infos.append(self.bitstamp_source.get_price_info(symbol, preferred_time))
         # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
         price_infos.append(self.binance_us_source.get_price_info(symbol, preferred_time))
@@ -60,14 +61,14 @@ class PriceSource:
         if valc == 1:
             # one valid price
             p = valpis[0].price
-            t = valpis[0].time
+            t = valpis[0].retrieve_time
         else:
             # multiple valid prices, take average
             sp = 0
             st = 0
             for i in range(len(valpis)):
                 sp += valpis[i].price
-                st += valpis[i].time
+                st += valpis[i].retrieve_time
             p = sp / float(valc)
             t = st / float(valc)
         return PriceInfo(p, symbol, t, src)
@@ -83,21 +84,21 @@ class PriceSource:
         s += "}"
         return s
 
-# Provide a dummy, algorithmically computed price
-class DummyPriceSource:
-    def get_price_info(symbol, t: int) -> PriceInfo:
-        if t == 0:
-            t = datetime.now(UTC).timestamp()
-        price = DummyPriceSource.get_price(t, symbol)
-        return PriceInfo(price, symbol, t, "Dummy!")
+# # Provide a dummy, algorithmically computed price
+# class DummyPriceSource:
+#     def get_price_info(symbol, t: int) -> PriceInfo:
+#         if t == 0:
+#             t = datetime.now(UTC).timestamp()
+#         price = DummyPriceSource.get_price(t, symbol)
+#         return PriceInfo(price, symbol, t, "Dummy!")
 
-    def get_price(t: int, symbol) -> int:
-        # Come up with a deterministic non-constant plausible value
-        base_btcusd = 60000 + (t - 1704067200) / 1000 + (t / 2345) % 1000
-        if symbol.upper() == "BTCUSD":
-            return round(base_btcusd)
-        if symbol.upper() == "BTCEUR":
-            return round(base_btcusd * 0.9)
-        # everything else
-        return round(base_btcusd / 10)
+#     def get_price(t: int, symbol) -> int:
+#         # Come up with a deterministic non-constant plausible value
+#         base_btcusd = 60000 + (t - 1704067200) / 1000 + (t / 2345) % 1000
+#         if symbol.upper() == "BTCUSD":
+#             return round(base_btcusd)
+#         if symbol.upper() == "BTCEUR":
+#             return round(base_btcusd * 0.9)
+#         # everything else
+#         return round(base_btcusd / 10)
 

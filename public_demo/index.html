@@ -146,14 +146,18 @@
         }
 
         async function load_prices1(prices) {
+            const now = new Date().getTime() / 1000;
             var htm = "<table>";
             for (var p in prices) {
                 const pp = prices[p];
+                const age = Math.round(now - pp.retrieve_time);
                 htm += "<tr><td style='font-weight: bold;'>" + pp.symbol + "</td>" +
                     "<td style='font-weight: bold;'>" + pp.price + "</td>" +
-                    "<td style='font-size: small;'>" + pp.source + "</td></tr>";
+                    "<td style='font-size: small;'>" + age + " s </td>" +
+                    "<td style='font-size: small;'>" + pp.source + "</td>" +
+                    "</tr>";
             }
-            htm += "</table";
+            htm += "</table>";
             document.getElementById("prices1").innerHTML = htm;
         }
 
