@@ -107,7 +107,6 @@ class PriceSource:
             now = datetime.now(UTC).timestamp()
             return PriceInfo.create_with_error(symbol, now, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
-        t = 0
         min_retrieve_time = valpis[0].retrieve_time
         min_claimed_time = valpis[0].claimed_time
         if valc == 1:
@@ -124,6 +123,12 @@ class PriceSource:
                 if valpis[i].claimed_time < min_claimed_time:
                     min_claimed_time = valpis[i].claimed_time
             p = sp / float(valc)
+
+        # Compute and set delta_from_aggr's
+        for pi in price_infos:
+            delta = pi.price - p
+            pi.delta_from_aggr = delta
+
         return PriceInfo(p, symbol, min_retrieve_time, min_claimed_time, src, price_infos, None)
 
     def aggregate_source(valid_count, valid_sources, invalid_sources):
