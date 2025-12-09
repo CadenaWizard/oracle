@@ -2,14 +2,50 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-class PriceInfo:
-    def __init__(self, price, symbol, time, source):
+class PriceInfoSingle:
+    """
+    Represents a single price data from a single source
+    @param price: float -- The price value
+    @param symbol: str -- The symbol, e.g. "BTCUSD". All/uppercase recommended.
+    @param retrieve_time: float -- The time of retrieval
+    @param claimed_time: float -- The time as claimed by the source
+    @param source: str -- The internal ID of the source, e.g. "Binance"
+    @param error: str -- Only set in case of error. Value should be 0 in that case.
+    """
+    def __init__(self, price: float, symbol: str, retrieve_time: float, claimed_time: float, source: str, error: str | None = None):
         self.price = price
         self.symbol = symbol
-        self.time = time
+        self.retrieve_time = retrieve_time
+        self.claimed_time = claimed_time
         self.source = source
+        self.error = error
+        # Delta from aggregate, set only in case part of an aggregate
+        self.delta_from_aggr = 0
 
-    price: float
-    symbol: str
-    time: float
-    source: str
+    def create_with_error(symbol: str, retrieve_time: float, source: str, error: str):
+        return PriceInfoSingle(0, symbol, retrieve_time, 0, source, error)
+
+
+class PriceInfo:
+    """
+    Represents a single price data that can be an aggregate.
+    @param price: float -- The price value
+    @param symbol: str -- The symbol, e.g. "BTCUSD". All/uppercase recommended.
+    @param retrieve_time: float -- The time of retrieval
+    @param claimed_time: float -- The time as claimed by the source
+    @param source: str -- The internal ID of the source, e.g. "Binance"
+    @param error: str -- Only set in case of error. Value should be 0 in that case.
+    @param aggr_sources: list[PriceInfo] - In case of aggregate price, the individual sources.
+    """
+    def __init__(self, price: float, symbol: str, retrieve_time: float, claimed_time: float, source: str, aggr_sources: list[PriceInfoSingle] = [], error: str | None = None):
+        self.price = price
+        self.symbol = symbol
+        self.retrieve_time = retrieve_time
+        self.claimed_time = claimed_time
+        self.source = source
+        self.error = error
+        self.aggr_sources = aggr_sources
+
+    def create_with_error(symbol: str, retrieve_time: float, source: str, error: str, aggr_sources = []):
+        return PriceInfo(0, symbol, retrieve_time, 0, source, aggr_sources, error)
+

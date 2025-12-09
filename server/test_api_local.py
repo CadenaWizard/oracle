@@ -162,6 +162,29 @@ class ServerApiTestClass(unittest.TestCase):
         self.assertGreater(value, 9_999)
         self.assertLess(value, 99_999_999)
 
+    # Note: depends on network, remote server
+    def test_price_info(self):
+        response = self.client.get("/api/v0/price_info/current/btcusd")
+        self.assertEqual(response.status_code, 200)
+        json_value = response.json()
+        # print(json_value)
+
+        value = json_value["price"]
+        # print(value)
+        self.assertGreater(value, 9_999)
+        self.assertLess(value, 99_999_999)
+
+        self.assertEqual(json_value["symbol"], "BTCUSD")
+
+        self.assertEqual(json_value["error"], None)
+
+        retrieve_time = json_value["retrieve_time"]
+        now = datetime.now(UTC).timestamp()
+        age = now - retrieve_time
+        # print(age, retrieve_time, now)
+        self.assertGreater(age, -300)
+        self.assertLess(age, 300)
+
 if __name__ == "__main__":
     unittest.main() # run all tests
 
