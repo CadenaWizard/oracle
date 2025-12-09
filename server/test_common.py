@@ -46,11 +46,11 @@ class PriceSourceMockConstant:
             'BTCEUR': 0.9,
         }
 
-    def get_price_info(self, symbol: str, _pref_max_age: float = 0) -> PriceInfoSingle:
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfoSingle:
         now = datetime.now(UTC).timestamp()
         symbol = symbol.upper()
         assert(symbol in self.symbol_rates)
         relative_rate = self.symbol_rates[symbol]
         rate = self.const_price * relative_rate
-        return PriceInfoSingle(rate, symbol, now, now, "MockConstant")
+        return PriceInfoSingle(rate, symbol, now - pref_max_age/2, now - pref_max_age/2, "MockConstant")
 

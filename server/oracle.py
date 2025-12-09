@@ -780,26 +780,22 @@ class OracleApp:
         return self.oracle
 
     def get_current_price(self, symbol: str):
-        now = datetime.now(UTC).timestamp()
         value = self.oracle.price_source.get_price_info(symbol, pref_max_age=60).price
         return value
 
     def get_current_prices(self):
         res = {}
-        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             value = self.oracle.price_source.get_price_info(symbol, pref_max_age=60).price
             res[symbol] = value
         return res
 
     def get_current_price_info(self, symbol: str):
-        now = datetime.now(UTC).timestamp()
         info = self.oracle.price_source.get_price_info(symbol, pref_max_age=60)
         return info
 
     def get_current_price_infos(self):
         res = {}
-        now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
             info = self.oracle.price_source.get_price_info(symbol, pref_max_age=60)
             res[symbol] = info
