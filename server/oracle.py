@@ -552,8 +552,8 @@ class Oracle:
         abs_time = math.ceil(datetime.now(UTC).timestamp()) + period_cap
         return self._get_next_event_with_time(definition, abs_time)
 
-    def get_price(self, symbol, time):
-        return self.price_source.get_price_info(symbol, time).price
+    def get_price(self, symbol, pref_max_age: float):
+        return self.price_source.get_price_info(symbol, pref_max_age=pref_max_age).price
 
     # Return the number of events modified, and the next time due
     def _create_past_outcomes_time(self, current_time: float, event_too_old_threshold: int = 86400) -> tuple[int, int]:
@@ -586,7 +586,7 @@ class Oracle:
         print(f"Found {len(events)} past events that need outcome")
         for e in events:
             symbol = e.desc.definition
-            value = self.get_price(symbol, current_time)
+            value = self.get_price(symbol, pref_max_age=15)
             try:
                 outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.signer_public_key, self.get_nonces(e))
                 self.db.digitoutcomes_insert(e.dto.event_id, outcome.digits)
@@ -781,27 +781,27 @@ class OracleApp:
 
     def get_current_price(self, symbol: str):
         now = datetime.now(UTC).timestamp()
-        value = self.oracle.price_source.get_price_info(symbol, now).price
+        value = self.oracle.price_source.get_price_info(symbol, pref_max_age=60).price
         return value
 
     def get_current_prices(self):
         res = {}
         now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
-            value = self.oracle.price_source.get_price_info(symbol, now).price
+            value = self.oracle.price_source.get_price_info(symbol, pref_max_age=60).price
             res[symbol] = value
         return res
 
     def get_current_price_info(self, symbol: str):
         now = datetime.now(UTC).timestamp()
-        info = self.oracle.price_source.get_price_info(symbol, now)
+        info = self.oracle.price_source.get_price_info(symbol, pref_max_age=60)
         return info
 
     def get_current_price_infos(self):
         res = {}
         now = datetime.now(UTC).timestamp()
         for symbol in self.oracle.price_source.get_symbols():
-            info = self.oracle.price_source.get_price_info(symbol, now)
+            info = self.oracle.price_source.get_price_info(symbol, pref_max_age=60)
             res[symbol] = info
         return res
 

@@ -5,6 +5,7 @@
 from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
+
 from datetime import datetime, UTC
 
 # Can provide current price infos
@@ -19,20 +20,21 @@ class PriceSource:
 
     # Return current price (info).
     # Supplied time is only a hint (used in case of dummy)
-    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
         symbol = symbol.upper()
         price_infos = []
 
         # TODO parallelize
-        price_infos.append(self.bitstamp_source.get_price_info(symbol, preferred_time))
+        price_infos.append(self.bitstamp_source.get_price_info(symbol, pref_max_age))
         # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
-        price_infos.append(self.binance_us_source.get_price_info(symbol, preferred_time))
+        price_infos.append(self.binance_us_source.get_price_info(symbol, pref_max_age))
 
         # Aggregate info from multiple sources
-        price_info = PriceSource.aggregate_infos(price_infos, symbol, preferred_time)
+        price_info = PriceSource.aggregate_infos(price_infos, symbol)
         return price_info
 
-    def aggregate_infos(price_infos: list[PriceInfoSingle], symbol, preferred_time):
+    def aggregate_infos(price_infos: list[PriceInfoSingle], symbol):
+        now = datetime.now(UTC).timestamp()
         # separate valid and invalid ones
         valc = 0
         invc = 0
@@ -55,7 +57,7 @@ class PriceSource:
         src = PriceSource.aggregate_source(valc, vals, invs)
         if valc == 0:
             # no valid price
-            return PriceInfo.create_with_error(symbol, preferred_time, src, price_infos, "No source with valid data, can't aggregate")
+            return PriceInfo.create_with_error(symbol, now, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
         t = 0
         min_retrieve_time = valpis[0].retrieve_time
