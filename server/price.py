@@ -2,10 +2,15 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from price_common import PriceInfo
+from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
+
 from datetime import datetime, UTC
+import _thread;
+
+PREFETCH_MIN_ACCEPTED_AGE_SECS: int = 15
+PREFETCH_PREF_MAX_AGE_SECS: int = 2
 
 # Can provide current price infos
 class PriceSource:
@@ -18,20 +23,40 @@ class PriceSource:
         return ["BTCUSD", "BTCEUR"]
 
     # Return current price (info).
-    # Supplied time is only a hint (used in case of dummy)
-    def get_price_info(self, symbol: str, preferred_time: int) -> PriceInfo:
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
+        price_info = self.get_price_info_internal(symbol, pref_max_age)
+
+        # Optional pre-fetch: if current info is old (but acceptable), start fetch in background
+        now = datetime.now(UTC).timestamp()
+        age = now - price_info.retrieve_time
+        # print(f"Age: {age}")
+        if age > max(PREFETCH_MIN_ACCEPTED_AGE_SECS, pref_max_age / 2):
+            _thread.start_new(self.bg_prefetch, (symbol,))
+
+        return price_info
+
+    def get_price_info_internal(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
         symbol = symbol.upper()
         price_infos = []
 
-        price_infos.append(self.bitstamp_source.get_price_info(symbol, preferred_time))
+        # TODO parallelize
+        price_infos.append(self.bitstamp_source.get_price_info(symbol, pref_max_age))
         # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
-        price_infos.append(self.binance_us_source.get_price_info(symbol, preferred_time))
+        price_infos.append(self.binance_us_source.get_price_info(symbol, pref_max_age))
 
         # Aggregate info from multiple sources
-        price_info = PriceSource.aggregate_infos(price_infos, symbol, preferred_time)
+        price_info = PriceSource.aggregate_infos(price_infos, symbol)
         return price_info
 
-    def aggregate_infos(price_infos: [PriceInfo], symbol, preferred_time):
+    def bg_prefetch(self, symbol):
+        # print(f"Prefetch in background ...")
+        _pi = self.get_price_info_internal(symbol, pref_max_age=PREFETCH_PREF_MAX_AGE_SECS)
+        # now = datetime.now(UTC).timestamp()
+        # age = now - _pi.retrieve_time
+        # print(f"Prefetch in background: age {age}  {_pi.price}")
+        return
+
+    def aggregate_infos(price_infos: list[PriceInfoSingle], symbol):
         # separate valid and invalid ones
         valc = 0
         invc = 0
@@ -40,7 +65,7 @@ class PriceSource:
         valpis = []
         for i in range(len(price_infos)):
             pi = price_infos[i]
-            if pi.price == 0:
+            if pi.price == 0 or pi.error:
                 invc += 1
                 if len(invs) > 0:
                     invs += ","
@@ -54,23 +79,27 @@ class PriceSource:
         src = PriceSource.aggregate_source(valc, vals, invs)
         if valc == 0:
             # no valid price
-            return PriceInfo(0, symbol, preferred_time, src)
+            now = datetime.now(UTC).timestamp()
+            return PriceInfo.create_with_error(symbol, now, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
         t = 0
+        min_retrieve_time = valpis[0].retrieve_time
+        min_claimed_time = valpis[0].claimed_time
         if valc == 1:
             # one valid price
             p = valpis[0].price
-            t = valpis[0].time
         else:
-            # multiple valid prices, take average
+            # multiple valid prices, take average. Time is oldest
             sp = 0
-            st = 0
+            t = valpis[0].retrieve_time
             for i in range(len(valpis)):
                 sp += valpis[i].price
-                st += valpis[i].time
+                if valpis[i].retrieve_time < min_retrieve_time:
+                    min_retrieve_time = valpis[i].retrieve_time
+                if valpis[i].claimed_time < min_claimed_time:
+                    min_claimed_time = valpis[i].claimed_time
             p = sp / float(valc)
-            t = st / float(valc)
-        return PriceInfo(p, symbol, t, src)
+        return PriceInfo(p, symbol, min_retrieve_time, min_claimed_time, src, price_infos, None)
 
     def aggregate_source(valid_count, valid_sources, invalid_sources):
         s = "Multi{cnt:" + str(valid_count) + ","
@@ -83,21 +112,4 @@ class PriceSource:
         s += "}"
         return s
 
-# Provide a dummy, algorithmically computed price
-class DummyPriceSource:
-    def get_price_info(symbol, t: int) -> PriceInfo:
-        if t == 0:
-            t = datetime.now(UTC).timestamp()
-        price = DummyPriceSource.get_price(t, symbol)
-        return PriceInfo(price, symbol, t, "Dummy!")
-
-    def get_price(t: int, symbol) -> int:
-        # Come up with a deterministic non-constant plausible value
-        base_btcusd = 60000 + (t - 1704067200) / 1000 + (t / 2345) % 1000
-        if symbol.upper() == "BTCUSD":
-            return round(base_btcusd)
-        if symbol.upper() == "BTCEUR":
-            return round(base_btcusd * 0.9)
-        # everything else
-        return round(base_btcusd / 10)
 
