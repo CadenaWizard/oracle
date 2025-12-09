@@ -14,6 +14,7 @@ BITSTAMP_CACHE_FOR_SECS: int = 15
 # E.g. https://www.bitstamp.net/api/v2/ticker/btceur
 class BitstampPriceSource:
     cache = {}
+    source_id = "Bitstamp"
 
     def __init__(self):
         self.cache = {}
@@ -34,23 +35,30 @@ class BitstampPriceSource:
                 # print("Using cached value", cached["pi"].price, cached)
                 return cached
         # Not cached, get it now
-        price = BitstampPriceSource.do_get_price(symbol)
-        pi = PriceInfoSingle(price, symbol, now, "Bitstamp")
+        price, claimed_time, error = BitstampPriceSource.do_get_price(symbol)
+        if error:
+            pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
+        else:
+            pi = PriceInfoSingle(price, symbol, now, claimed_time, self.source_id)
         # Cache it
         # Note: also cache errored info
         self.cache[symbol] = pi
         # print("Saved value to cache", cached["pi"].price, cached)
         return pi
 
-    def do_get_price(symbol: str) -> float:
-        url = BITSTAMP_URL_ROOT + symbol
-        # print("url", url)
-        response = requests.get(url)
-        if (response.ok):
+    def do_get_price(symbol: str) -> tuple[float, float, str | None]:
+        try:
+            url = BITSTAMP_URL_ROOT + symbol
+            # print("url", url)
+            response = requests.get(url)
+            if not response.ok:
+                return 0, 0, f"Error getting price, {url}, {response.status_code}"
             jsonData = json.loads(response.content)
+            # print(jsonData)
             price = jsonData['last']
-            if price is not None:
-                return float(price)
-        else:
-            print("Error fetching price", url, "error", response)
-        return 0
+            if price is None:
+                return 0, 0, f"Missing price"
+            claimed_time = jsonData['timestamp']
+            return float(price), float(claimed_time), None
+        except Exception as ex:
+            return 0, 0, f"Exception getting price, {url}, {ex}"

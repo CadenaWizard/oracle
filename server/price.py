@@ -58,20 +58,23 @@ class PriceSource:
             return PriceInfo.create_with_error(symbol, preferred_time, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
         t = 0
+        min_retrieve_time = valpis[0].retrieve_time
+        min_claimed_time = valpis[0].claimed_time
         if valc == 1:
             # one valid price
             p = valpis[0].price
-            t = valpis[0].retrieve_time
         else:
             # multiple valid prices, take average. Time is oldest
             sp = 0
             t = valpis[0].retrieve_time
             for i in range(len(valpis)):
                 sp += valpis[i].price
-                if valpis[i].retrieve_time < t:
-                    t = valpis[i].retrieve_time
+                if valpis[i].retrieve_time < min_retrieve_time:
+                    min_retrieve_time = valpis[i].retrieve_time
+                if valpis[i].claimed_time < min_claimed_time:
+                    min_claimed_time = valpis[i].claimed_time
             p = sp / float(valc)
-        return PriceInfo(p, symbol, t, src, price_infos, None)
+        return PriceInfo(p, symbol, min_retrieve_time, min_claimed_time, src, price_infos, None)
 
     def aggregate_source(valid_count, valid_sources, invalid_sources):
         s = "Multi{cnt:" + str(valid_count) + ","
@@ -84,21 +87,4 @@ class PriceSource:
         s += "}"
         return s
 
-# # Provide a dummy, algorithmically computed price
-# class DummyPriceSource:
-#     def get_price_info(symbol, t: int) -> PriceInfo:
-#         if t == 0:
-#             t = datetime.now(UTC).timestamp()
-#         price = DummyPriceSource.get_price(t, symbol)
-#         return PriceInfo(price, symbol, t, "Dummy!")
-
-#     def get_price(t: int, symbol) -> int:
-#         # Come up with a deterministic non-constant plausible value
-#         base_btcusd = 60000 + (t - 1704067200) / 1000 + (t / 2345) % 1000
-#         if symbol.upper() == "BTCUSD":
-#             return round(base_btcusd)
-#         if symbol.upper() == "BTCEUR":
-#             return round(base_btcusd * 0.9)
-#         # everything else
-#         return round(base_btcusd / 10)
 

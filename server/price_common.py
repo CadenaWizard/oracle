@@ -8,18 +8,20 @@ class PriceInfoSingle:
     @param price: float -- The price value
     @param symbol: str -- The symbol, e.g. "BTCUSD". All/uppercase recommended.
     @param retrieve_time: float -- The time of retrieval
+    @param claimed_time: float -- The time as claimed by the source
     @param source: str -- The internal ID of the source, e.g. "Binance"
     @param error: str -- Only set in case of error. Value should be 0 in that case.
     """
-    def __init__(self, price: float, symbol: str, retrieve_time: float, source: str, error: str | None = None):
+    def __init__(self, price: float, symbol: str, retrieve_time: float, claimed_time: float, source: str, error: str | None = None):
         self.price = price
         self.symbol = symbol
         self.retrieve_time = retrieve_time
+        self.claimed_time = claimed_time
         self.source = source
         self.error = error
 
     def create_with_error(symbol: str, retrieve_time: float, source: str, error: str):
-        return PriceInfoSingle(0, symbol, retrieve_time, source, error)
+        return PriceInfoSingle(0, symbol, retrieve_time, 0, source, error)
 
 
 class PriceInfo:
@@ -28,18 +30,20 @@ class PriceInfo:
     @param price: float -- The price value
     @param symbol: str -- The symbol, e.g. "BTCUSD". All/uppercase recommended.
     @param retrieve_time: float -- The time of retrieval
+    @param claimed_time: float -- The time as claimed by the source
     @param source: str -- The internal ID of the source, e.g. "Binance"
     @param error: str -- Only set in case of error. Value should be 0 in that case.
     @param aggr_sources: list[PriceInfo] - In case of aggregate price, the individual sources.
     """
-    def __init__(self, price: float, symbol: str, retrieve_time: float, source: str, aggr_sources: list[PriceInfoSingle] = [], error: str | None = None):
+    def __init__(self, price: float, symbol: str, retrieve_time: float, claimed_time: float, source: str, aggr_sources: list[PriceInfoSingle] = [], error: str | None = None):
         self.price = price
         self.symbol = symbol
         self.retrieve_time = retrieve_time
+        self.claimed_time = claimed_time
         self.source = source
         self.error = error
         self.aggr_sources = aggr_sources
 
     def create_with_error(symbol: str, retrieve_time: float, source: str, error: str, aggr_sources = []):
-        return PriceInfo(0, symbol, retrieve_time, source, aggr_sources, error)
+        return PriceInfo(0, symbol, retrieve_time, 0, source, aggr_sources, error)
 

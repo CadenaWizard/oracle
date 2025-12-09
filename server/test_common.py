@@ -1,5 +1,5 @@
 from db import db_setup_from_to
-from price_common import PriceInfo
+from price_common import PriceInfoSingle
 import dlcplazacryptlib
 
 import sqlite3
@@ -50,5 +50,5 @@ class PriceSourceMockConstant:
         assert(symbol in self.symbol_rates)
         relative_rate = self.symbol_rates[symbol]
         rate = self.const_price * relative_rate
-        return PriceInfo(rate, symbol, preferred_time, "MockConstant")
+        return PriceInfoSingle(rate, symbol, preferred_time, preferred_time, "MockConstant")
 
