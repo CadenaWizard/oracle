@@ -11,6 +11,7 @@ DEFAULT_MAX_AGE_SECS: int = 15
 MIN_PREF_MAX_AGE_SECS: int = 5
 
 # Get rate price info from Kraken, and cache it for a while
+# See https://docs.kraken.com/api/docs/rest-api/get-ticker-information
 # E.g. curl 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD' -H 'Accept: application/json'
 class KrakenPriceSource:
     def __init__(self):
