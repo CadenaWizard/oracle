@@ -10,43 +10,21 @@ import requests
 DEFAULT_MAX_AGE_SECS: int = 15
 MIN_PREF_MAX_AGE_SECS: int = 5
 
-# Get rate price info from Binance, and cache it for a while
-# E.g. https://api3.binance.com/api/v3/ticker/price?symbol=BTCEUR
-# E.g. https://api.binance.us/api/v3/ticker/price?symbol=BTCUSDT
-class BinancePriceSource:
-    global_or_us = True
-    host = "api3.binance.com"
-    url_root = ""
-    source_id = "Binance_set_later"
-    cache = {}
-
-    def __init__(self, global_or_us: bool):
-        self.global_or_us = global_or_us
-        if global_or_us:
-            self.host = "api3.binance.com"
-            self.source_id = "Binance"
-        else:
-            self.host = "api.binance.us"
-            self.source_id = "BinanceUS"
-        self.url_root = "https://" + self.host + "/api/v3/ticker/price?symbol="
+# Get rate price info from Kraken, and cache it for a while
+# E.g. curl 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD' -H 'Accept: application/json'
+class KrakenPriceSource:
+    def __init__(self):
+        self.host = "api.kraken.com"
+        self.source_id = "Kraken"
+        self.url_root = f"https://{self.host}/0/public/Ticker?pair="
         self.cache = {}
-        print("Binance price source initialized,", self.global_or_us, "host", self.host, "src", self.source_id, "url", self.url_root)
+        print(f"Kraken price source initialized, host {self.host}, src {self.source_id}, url {self.url_root}")
 
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
         now = datetime.now(UTC).timestamp()
         if pref_max_age == 0:
             pref_max_age = DEFAULT_MAX_AGE_SECS
         pref_max_age = max(pref_max_age, MIN_PREF_MAX_AGE_SECS)
-
-        # symbol specific processing
-        if symbol.upper() == "BTCUSD":
-            symbol = "BTCUSDT"
-        if symbol.upper() == "BTCEUR":
-            if not self.global_or_us:
-                # US has no EUR
-                return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported in this region, {symbol}")
-            else:
-                symbol = "BTCEUR"
 
         if symbol in self.cache:
             cached = self.cache[symbol]
@@ -68,18 +46,35 @@ class BinancePriceSource:
         # print("Saved value to cache", cached["pi"].price, cached)
         return pi
 
+    def internal_symbol(self, symbol) -> tuple[str, str]:
+        symbol = symbol.upper()
+        if symbol == "BTCUSD":
+            return ("XBTUSD", "XXBTZUSD")
+        if symbol == "BTCEUR":
+            return ("XBTEUR", "XXBTZEUR")
+        return (None, None)
+
     def do_get_price(self, symbol: str) -> tuple[float, str | None]:
         try:
-            url = self.url_root + symbol
+            symb_int1, symb_int2 = self.internal_symbol(symbol)
+            if symb_int1 is None or symb_int2 is None:
+                return 0, f"Symbol is not supported, {symbol}"
+            url = self.url_root + symb_int1
             # print("url", url)
             response = requests.get(url)
             if not response.ok:
                 return 0, f"Error getting price, {url}, {response.status_code}"
             jsonData = response.json()
             # print(jsonData)
-            price = jsonData['price']
-            if price is None:
-                return 0, f"Missing price"
-            return float(price), None
+            result = jsonData["result"]
+            if result is not None:
+                symbinfo = result[symb_int2]
+                if symbinfo is not None:
+                    lasttrade = symbinfo["c"]
+                    if lasttrade is not None:
+                        value = float(lasttrade[0])
+                        if value is not None:
+                            return value, None
+            return 0, f"Error parsing price, {url}, {jsonData}"
         except Exception as ex:
             return 0, f"Exception getting price, {url}, {ex}"

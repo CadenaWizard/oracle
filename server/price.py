@@ -5,6 +5,7 @@
 from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
+from price_kraken import KrakenPriceSource
 
 from datetime import datetime, UTC
 import _thread;
@@ -18,6 +19,7 @@ class PriceSource:
         self.bitstamp_source = BitstampPriceSource()
         # binance_global_source = BinancePriceSource(True)
         self.binance_us_source = BinancePriceSource(False)
+        self.kraken_source = KrakenPriceSource()
 
     def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]
@@ -43,6 +45,7 @@ class PriceSource:
         price_infos.append(self.bitstamp_source.get_price_info(symbol, pref_max_age))
         # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
         price_infos.append(self.binance_us_source.get_price_info(symbol, pref_max_age))
+        price_infos.append(self.kraken_source.get_price_info(symbol, pref_max_age))
 
         # Aggregate info from multiple sources
         price_info = PriceSource.aggregate_infos(price_infos, symbol)

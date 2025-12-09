@@ -3,8 +3,8 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from price_common import PriceInfoSingle
+
 from datetime import datetime, UTC
-import json
 import requests
 
 BITSTAMP_URL_ROOT: str = "https://www.bitstamp.net/api/v2/ticker/"
@@ -57,7 +57,7 @@ class BitstampPriceSource:
             response = requests.get(url)
             if not response.ok:
                 return 0, 0, f"Error getting price, {url}, {response.status_code}"
-            jsonData = json.loads(response.content)
+            jsonData = response.json()
             # print(jsonData)
             price = jsonData['last']
             if price is None:
