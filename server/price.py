@@ -7,6 +7,10 @@ from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
 
 from datetime import datetime, UTC
+import _thread;
+
+PREFETCH_MIN_ACCEPTED_AGE_SECS: int = 15
+PREFETCH_PREF_MAX_AGE_SECS: int = 2
 
 # Can provide current price infos
 class PriceSource:
@@ -19,8 +23,19 @@ class PriceSource:
         return ["BTCUSD", "BTCEUR"]
 
     # Return current price (info).
-    # Supplied time is only a hint (used in case of dummy)
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
+        price_info = self.get_price_info_internal(symbol, pref_max_age)
+
+        # Optional pre-fetch: if current info is old (but acceptable), start fetch in background
+        now = datetime.now(UTC).timestamp()
+        age = now - price_info.retrieve_time
+        # print(f"Age: {age}")
+        if age > max(PREFETCH_MIN_ACCEPTED_AGE_SECS, pref_max_age / 2):
+            _thread.start_new(self.bg_prefetch, (symbol,))
+
+        return price_info
+
+    def get_price_info_internal(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
         symbol = symbol.upper()
         price_infos = []
 
@@ -33,8 +48,15 @@ class PriceSource:
         price_info = PriceSource.aggregate_infos(price_infos, symbol)
         return price_info
 
+    def bg_prefetch(self, symbol):
+        # print(f"Prefetch in background ...")
+        _pi = self.get_price_info_internal(symbol, pref_max_age=PREFETCH_PREF_MAX_AGE_SECS)
+        # now = datetime.now(UTC).timestamp()
+        # age = now - _pi.retrieve_time
+        # print(f"Prefetch in background: age {age}  {_pi.price}")
+        return
+
     def aggregate_infos(price_infos: list[PriceInfoSingle], symbol):
-        now = datetime.now(UTC).timestamp()
         # separate valid and invalid ones
         valc = 0
         invc = 0
@@ -57,6 +79,7 @@ class PriceSource:
         src = PriceSource.aggregate_source(valc, vals, invs)
         if valc == 0:
             # no valid price
+            now = datetime.now(UTC).timestamp()
             return PriceInfo.create_with_error(symbol, now, src, price_infos, "No source with valid data, can't aggregate")
         p = 0
         t = 0
