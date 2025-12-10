@@ -21,8 +21,12 @@ class KrakenPriceSource:
         self.cache = {}
         print(f"Kraken price source initialized, host {self.host}, src {self.source_id}, url {self.url_root}")
 
-    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+    def get_source_id(self):
+        return self.source_id
+
+    def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
         now = datetime.now(UTC).timestamp()
+
         if pref_max_age == 0:
             pref_max_age = DEFAULT_MAX_AGE_SECS
         pref_max_age = max(pref_max_age, MIN_PREF_MAX_AGE_SECS)
@@ -33,14 +37,24 @@ class KrakenPriceSource:
             if age < pref_max_age:
                 # print("Using cached value", cached["pi"].price, cached)
                 return cached
-        # Not cached, get it now
+
+        # Not cached
+        return None
+
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+        now = datetime.now(UTC).timestamp()
+
+        fast = self.get_price_info_fast(symbol, pref_max_age)
+        if fast is not None:
+            return fast
+
+        # Get price now
         price, error = self.do_get_price(symbol)
         if error:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:
             # No claimed time from source
-            claimed_time = now
-            pi = PriceInfoSingle(price, symbol, now, claimed_time, self.source_id)
+            pi = PriceInfoSingle(price, symbol, now, 0, self.source_id)
         # Cache it
         # Note: also cache errored info
         self.cache[symbol] = pi

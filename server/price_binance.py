@@ -14,12 +14,6 @@ MIN_PREF_MAX_AGE_SECS: int = 5
 # E.g. https://api3.binance.com/api/v3/ticker/price?symbol=BTCEUR
 # E.g. https://api.binance.us/api/v3/ticker/price?symbol=BTCUSDT
 class BinancePriceSource:
-    global_or_us = True
-    host = "api3.binance.com"
-    url_root = ""
-    source_id = "Binance_set_later"
-    cache = {}
-
     def __init__(self, global_or_us: bool):
         self.global_or_us = global_or_us
         if global_or_us:
@@ -28,25 +22,35 @@ class BinancePriceSource:
         else:
             self.host = "api.binance.us"
             self.source_id = "BinanceUS"
+        self.host = "api3.binance.com"
         self.url_root = "https://" + self.host + "/api/v3/ticker/price?symbol="
         self.cache = {}
         print("Binance price source initialized,", self.global_or_us, "host", self.host, "src", self.source_id, "url", self.url_root)
 
-    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
-        now = datetime.now(UTC).timestamp()
-        if pref_max_age == 0:
-            pref_max_age = DEFAULT_MAX_AGE_SECS
-        pref_max_age = max(pref_max_age, MIN_PREF_MAX_AGE_SECS)
+    def get_source_id(self):
+        return self.source_id
 
-        # symbol specific processing
+    def process_symbol(self, symbol) -> str | None:
         if symbol.upper() == "BTCUSD":
-            symbol = "BTCUSDT"
+            return "BTCUSDT"
         if symbol.upper() == "BTCEUR":
             if not self.global_or_us:
                 # US has no EUR
-                return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported in this region, {symbol}")
+                return None
             else:
-                symbol = "BTCEUR"
+                return "BTCEUR"
+        return None
+
+    def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
+        now = datetime.now(UTC).timestamp()
+
+        symbol = self.process_symbol(symbol)
+        if not symbol:
+            return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
+
+        if pref_max_age == 0:
+            pref_max_age = DEFAULT_MAX_AGE_SECS
+        pref_max_age = max(pref_max_age, MIN_PREF_MAX_AGE_SECS)
 
         if symbol in self.cache:
             cached = self.cache[symbol]
@@ -54,14 +58,28 @@ class BinancePriceSource:
             if age < pref_max_age:
                 # print("Using cached value", cached["pi"].price, cached)
                 return cached
-        # Not cached, get it now
+
+        # Not cached
+        return None
+
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+        now = datetime.now(UTC).timestamp()
+
+        fast = self.get_price_info_fast(symbol, pref_max_age)
+        if fast is not None:
+            return fast
+
+        symbol = self.process_symbol(symbol)
+        if not symbol:
+            return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
+
+        # Get price now
         price, error = self.do_get_price(symbol)
         if error:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:
             # No claimed time from source
-            claimed_time = now
-            pi = PriceInfoSingle(price, symbol, now, claimed_time, self.source_id)
+            pi = PriceInfoSingle(price, symbol, now, 0, self.source_id)
         # Cache it
         # Note: also cache errored info
         self.cache[symbol] = pi
