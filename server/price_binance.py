@@ -14,12 +14,6 @@ MIN_PREF_MAX_AGE_SECS: int = 5
 # E.g. https://api3.binance.com/api/v3/ticker/price?symbol=BTCEUR
 # E.g. https://api.binance.us/api/v3/ticker/price?symbol=BTCUSDT
 class BinancePriceSource:
-    global_or_us = True
-    host = "api3.binance.com"
-    url_root = ""
-    source_id = "Binance_set_later"
-    cache = {}
-
     def __init__(self, global_or_us: bool):
         self.global_or_us = global_or_us
         if global_or_us:
@@ -28,9 +22,13 @@ class BinancePriceSource:
         else:
             self.host = "api.binance.us"
             self.source_id = "BinanceUS"
+        self.host = "api3.binance.com"
         self.url_root = "https://" + self.host + "/api/v3/ticker/price?symbol="
         self.cache = {}
         print("Binance price source initialized,", self.global_or_us, "host", self.host, "src", self.source_id, "url", self.url_root)
+
+    def get_source_id(self):
+        return self.source_id
 
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
         now = datetime.now(UTC).timestamp()
@@ -60,8 +58,7 @@ class BinancePriceSource:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:
             # No claimed time from source
-            claimed_time = now
-            pi = PriceInfoSingle(price, symbol, now, claimed_time, self.source_id)
+            pi = PriceInfoSingle(price, symbol, now, 0, self.source_id)
         # Cache it
         # Note: also cache errored info
         self.cache[symbol] = pi

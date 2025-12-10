@@ -21,6 +21,9 @@ class KrakenPriceSource:
         self.cache = {}
         print(f"Kraken price source initialized, host {self.host}, src {self.source_id}, url {self.url_root}")
 
+    def get_source_id(self):
+        return self.source_id
+
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
         now = datetime.now(UTC).timestamp()
         if pref_max_age == 0:
@@ -39,8 +42,7 @@ class KrakenPriceSource:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:
             # No claimed time from source
-            claimed_time = now
-            pi = PriceInfoSingle(price, symbol, now, claimed_time, self.source_id)
+            pi = PriceInfoSingle(price, symbol, now, 0, self.source_id)
         # Cache it
         # Note: also cache errored info
         self.cache[symbol] = pi

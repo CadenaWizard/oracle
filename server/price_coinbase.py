@@ -24,6 +24,9 @@ class CoinbasePriceSource:
 
         print(f"{self.source_id} price source initialized, uri {self.uri}")
 
+    def get_source_id(self):
+        return self.source_id
+
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
         now = datetime.now(UTC).timestamp()
 

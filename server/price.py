@@ -34,7 +34,10 @@ class PriceSource:
             coinbase_source,
         ]
 
-        print(f"PriceSource init, with {len(self.sources)} sources")
+        print(f"PriceSource init, with sources: ", end='')
+        for s in self.sources:
+            print(s.get_source_id(), " ", end='')
+        print()
 
     def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]

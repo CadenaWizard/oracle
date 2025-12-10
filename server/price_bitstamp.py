@@ -14,11 +14,12 @@ MIN_PREF_MAX_AGE_SECS: int = 5
 # Get rate price info from Bitstamp, and cache it for a while
 # E.g. https://www.bitstamp.net/api/v2/ticker/btceur
 class BitstampPriceSource:
-    cache = {}
-    source_id = "Bitstamp"
-
     def __init__(self):
+        self.source_id = "Bitstamp"
         self.cache = {}
+
+    def get_source_id(self):
+        return self.source_id
 
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
         now = datetime.now(UTC).timestamp()
