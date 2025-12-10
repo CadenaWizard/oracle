@@ -147,6 +147,9 @@ class PriceSource:
                     min_claimed_time = valpis[i].claimed_time
             p = sp / float(valc)
 
+        # Round p to 4 decimals
+        p = round(p, 4)
+
         # Compute and set delta_from_aggr's
         for pi in price_infos:
             delta = pi.price - p
