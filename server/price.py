@@ -17,11 +17,16 @@ PREFETCH_PREF_MAX_AGE_SECS: int = 2
 # Can provide current price infos
 class PriceSource:
     def __init__(self):
+        self.sources = []
+        print("PriceSource init")
+
+    def init_sources(self):
         bitstamp_source = BitstampPriceSource()
         # binance_global_source = BinancePriceSource(True)
         binance_us_source = BinancePriceSource(False)
         kraken_source = KrakenPriceSource()
         coinbase_source = CoinbasePriceSource()
+
         self.sources = [
             bitstamp_source,
             binance_us_source,
@@ -29,11 +34,20 @@ class PriceSource:
             coinbase_source,
         ]
 
+        print(f"PriceSource init, with sources: ", end='')
+        for s in self.sources:
+            print(s.get_source_id(), " ", end='')
+        print()
+
     def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]
 
     # Return current price (info).
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
+        # lazy init:
+        if len(self.sources) == 0:
+            self.init_sources()
+
         price_info = self.get_price_info_internal(symbol, pref_max_age)
 
         # Optional pre-fetch: if current info is old (but acceptable), start fetch in background

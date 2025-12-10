@@ -56,6 +56,7 @@ class CoinbasePriceSource:
 
     def update_recvd(self, data):
         try:
+            now = datetime.now(UTC).timestamp()
             # print(f"update_recvd {data}")
             if "product_id" in data and "price" in data and "time" in data:
                 int_symbol = data["product_id"]
@@ -68,7 +69,7 @@ class CoinbasePriceSource:
                     time = time_obj.timestamp()
                     # print(symbol, price, time, time_obj.ctime())
                     # Create price info and store it
-                    price_info = PriceInfoSingle(price, symbol, time, time, self.source_id)
+                    price_info = PriceInfoSingle(price, symbol, now, time, self.source_id)
                     self.cache[symbol] = price_info
             else:
                 print(f"Not a price update message, or other error: {data}")

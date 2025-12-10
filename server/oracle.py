@@ -379,7 +379,7 @@ class Oracle:
         return EventClass.new(class_id, now, definition.upper(), digits, digit_low_pos, first_time, repeat_period, last_time, public_key)
 
     # TODO: such operational data should be moved out of code, into config/DB
-    def initialize_with_default_data(self, public_key):
+    def test_initialize_with_default_data(self, public_key):
         self.db.delete_all_contents()
         self.db.print_stats()
         now = round(datetime.now(UTC).timestamp())
