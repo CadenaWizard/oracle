@@ -22,7 +22,6 @@ class BinancePriceSource:
         else:
             self.host = "api.binance.us"
             self.source_id = "BinanceUS"
-        self.host = "api3.binance.com"
         self.url_root = "https://" + self.host + "/api/v3/ticker/price?symbol="
         self.cache = {}
         print("Binance price source initialized,", self.global_or_us, "host", self.host, "src", self.source_id, "url", self.url_root)
@@ -44,8 +43,8 @@ class BinancePriceSource:
     def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
         now = datetime.now(UTC).timestamp()
 
-        symbol = self.process_symbol(symbol)
-        if not symbol:
+        int_symbol = self.process_symbol(symbol)
+        if not int_symbol:
             return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
 
         if pref_max_age == 0:
@@ -69,12 +68,12 @@ class BinancePriceSource:
         if fast is not None:
             return fast
 
-        symbol = self.process_symbol(symbol)
-        if not symbol:
+        int_symbol = self.process_symbol(symbol)
+        if not int_symbol:
             return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
 
         # Get price now
-        price, error = self.do_get_price(symbol)
+        price, error = self.do_get_price(int_symbol)
         if error:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:

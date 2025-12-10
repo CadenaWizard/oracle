@@ -31,8 +31,8 @@ class BitstampPriceSource:
     def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
         now = datetime.now(UTC).timestamp()
 
-        symbol = self.process_symbol(symbol)
-        if not symbol:
+        int_symbol = self.process_symbol(symbol)
+        if not int_symbol:
             return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
 
         if pref_max_age == 0:
@@ -56,12 +56,12 @@ class BitstampPriceSource:
         if fast is not None:
             return fast
 
-        symbol = self.process_symbol(symbol)
-        if not symbol:
+        int_symbol = self.process_symbol(symbol)
+        if not int_symbol:
             return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
 
         # Get price now
-        price, claimed_time, error = BitstampPriceSource.do_get_price(symbol)
+        price, claimed_time, error = BitstampPriceSource.do_get_price(int_symbol)
         if error:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
         else:
