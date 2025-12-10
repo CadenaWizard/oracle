@@ -5,6 +5,7 @@
 from price_common import PriceInfo, PriceInfoSingle
 from price_binance import BinancePriceSource
 from price_bitstamp import BitstampPriceSource
+from price_coinbase import CoinbasePriceSource
 from price_kraken import KrakenPriceSource
 
 from datetime import datetime, UTC
@@ -16,16 +17,37 @@ PREFETCH_PREF_MAX_AGE_SECS: int = 2
 # Can provide current price infos
 class PriceSource:
     def __init__(self):
-        self.bitstamp_source = BitstampPriceSource()
+        self.sources = []
+        print("PriceSource init")
+
+    def init_sources(self):
+        bitstamp_source = BitstampPriceSource()
         # binance_global_source = BinancePriceSource(True)
-        self.binance_us_source = BinancePriceSource(False)
-        self.kraken_source = KrakenPriceSource()
+        binance_us_source = BinancePriceSource(False)
+        kraken_source = KrakenPriceSource()
+        coinbase_source = CoinbasePriceSource()
+
+        self.sources = [
+            bitstamp_source,
+            binance_us_source,
+            kraken_source,
+            coinbase_source,
+        ]
+
+        print(f"PriceSource init, with sources: ", end='')
+        for s in self.sources:
+            print(s.get_source_id(), " ", end='')
+        print()
 
     def get_symbols(self) -> list[str]:
         return ["BTCUSD", "BTCEUR"]
 
     # Return current price (info).
     def get_price_info(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
+        # lazy init:
+        if len(self.sources) == 0:
+            self.init_sources()
+
         price_info = self.get_price_info_internal(symbol, pref_max_age)
 
         # Optional pre-fetch: if current info is old (but acceptable), start fetch in background
@@ -42,17 +64,11 @@ class PriceSource:
         symbol = symbol.upper()
 
         # Invoke in parallel
-        sources = [
-            self.bitstamp_source,
-            self.binance_us_source,
-            self.kraken_source,
-            # price_infos.append(self.binance_global_source.get_price_info(symbol, preferred_time))
-        ]
-        n = len(sources)
+        n = len(self.sources)
         thids = []
         price_infos = [None] * n
         for i in range(n):
-            th = threading.Thread(target=self._bg_get_price, args=(sources[i], symbol, pref_max_age, price_infos, i))
+            th = threading.Thread(target=self._bg_get_price, args=(self.sources[i], symbol, pref_max_age, price_infos, i))
             thids.append(th)
             th.start()
         # Wait for all
