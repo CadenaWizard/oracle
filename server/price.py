@@ -63,17 +63,24 @@ class PriceSource:
     def get_price_info_internal(self, symbol: str, pref_max_age: float = 0) -> PriceInfo:
         symbol = symbol.upper()
 
-        # Invoke in parallel
+        # Invoke all sources. Invoke then in parallel, unless fast result is available
         n = len(self.sources)
         thids = []
         price_infos = [None] * n
         for i in range(n):
+            price_infos[i] = self.sources[i].get_price_info_fast(symbol, pref_max_age)
+            if price_infos[i] is not None:
+                continue
+            # Fast info not available, invoke in bg thread
+            # print(f"Getting price from {self.sources[i].get_source_id()} in bg ...")
             th = threading.Thread(target=self._bg_get_price, args=(self.sources[i], symbol, pref_max_age, price_infos, i))
-            thids.append(th)
             th.start()
-        # Wait for all
-        for i in range(n):
-            thids[i].join()
+            thids.append(th)
+        # Wait for bg threads
+        if len(thids) > 0:
+            # print(f"Waiting for bg prices, completion of {len(thids)} threads...")
+            for th in thids:
+                th.join()
 
         # Aggregate info from multiple sources
         price_info = PriceSource.aggregate_infos(price_infos, symbol)

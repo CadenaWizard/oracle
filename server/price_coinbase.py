@@ -27,7 +27,8 @@ class CoinbasePriceSource:
     def get_source_id(self):
         return self.source_id
 
-    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+    # We are always fast/cached
+    def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
         now = datetime.now(UTC).timestamp()
 
         symbol = symbol.upper()
@@ -37,6 +38,9 @@ class CoinbasePriceSource:
             return cached
         # Not cached, error
         return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Price info not available, {symbol}, uri {self.uri}")
+
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+        return self.get_price_info_fast(symbol, pref_max_age)
 
     def internal_symbols(self) -> list[str]:
         return ["BTC-USD", "BTC-EUR"]

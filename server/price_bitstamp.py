@@ -21,17 +21,23 @@ class BitstampPriceSource:
     def get_source_id(self):
         return self.source_id
 
-    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+    def process_symbol(self, symbol) -> str | None:
+        if symbol.upper() == "BTCUSD":
+            return "btcusd"
+        if symbol.upper() == "BTCEUR":
+            return "btceur"
+        return None
+
+    def get_price_info_fast(self, symbol: str, pref_max_age: float = 0) -> float | None:
         now = datetime.now(UTC).timestamp()
+
+        symbol = self.process_symbol(symbol)
+        if not symbol:
+            return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
+
         if pref_max_age == 0:
             pref_max_age = DEFAULT_MAX_AGE_SECS
         pref_max_age = max(pref_max_age, MIN_PREF_MAX_AGE_SECS)
-
-        # symbol specific processing
-        if symbol.upper() == "BTCUSD":
-            symbol = "btcusd"
-        if symbol.upper() == "BTCEUR":
-            symbol = "btceur"
 
         if symbol in self.cache:
             cached = self.cache[symbol]
@@ -39,7 +45,22 @@ class BitstampPriceSource:
             if age < pref_max_age:
                 # print("Using cached value", cached["pi"].price, cached)
                 return cached
-        # Not cached, get it now
+
+        # Not cached
+        return None
+
+    def get_price_info(self, symbol: str, pref_max_age: float = 0) -> float:
+        now = datetime.now(UTC).timestamp()
+
+        fast = self.get_price_info_fast(symbol, pref_max_age)
+        if fast is not None:
+            return fast
+
+        symbol = self.process_symbol(symbol)
+        if not symbol:
+            return PriceInfoSingle.create_with_error(symbol, now, self.source_id, f"Symbol not supported (in this region), {symbol}")
+
+        # Get price now
         price, claimed_time, error = BitstampPriceSource.do_get_price(symbol)
         if error:
             pi = PriceInfoSingle.create_with_error(symbol, now, self.source_id, error)
