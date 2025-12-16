@@ -1,7 +1,7 @@
 dotenv
 fastapi[standard]
 maturin        # for Rust
-bitcoinlib
+#bitcoinlib
 requests
 typing
 
