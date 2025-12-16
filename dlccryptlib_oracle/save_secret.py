@@ -28,7 +28,7 @@ network = DEFAULT_NETWORK
 
 
 def print_usage():
-    print("save_secret.py:  Set or check secret file used by dlcplazacryptlib")
+    print("save_secret.py:  Set or check secret file used by dlccryptlib")
     print()
     print("save_secret.py  [--set] [--file <file>] [--signet]")
     print("  --set:         If specified, mnemominc is prompted for, and secret is saved. Secret file must not exist.")

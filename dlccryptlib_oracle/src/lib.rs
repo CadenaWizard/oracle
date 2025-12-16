@@ -9,7 +9,7 @@ use pyo3::wrap_pyfunction;
 
 // Re-define the methods in this Python-wrapped library
 #[pymodule]
-fn dlcplazacryptlib(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn dlccryptlib_oracle(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(dlccryptlib_py::init, m)?)?;
     m.add_function(wrap_pyfunction!(dlccryptlib_py::reinit_for_testing, m)?)?;
     m.add_function(wrap_pyfunction!(dlccryptlib_py::init_with_entropy, m)?)?;

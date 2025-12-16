@@ -3,7 +3,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from db import EventStorageDb
-import dlcplazacryptlib
+import dlccryptlib_oracle
 from dto import DigitOutcome, EventClassDto, EventDto, Nonce, OutcomeDto
 from price import PriceSource
 from util import power_of_ten
@@ -186,7 +186,7 @@ class Nonces:
         nonces = []
         for i in range(range_digits):
             # TODO use a non-deterministic, true random nonce here
-            newnonce = dlcplazacryptlib.create_deterministic_nonce(event_id, i)
+            newnonce = dlccryptlib_oracle.create_deterministic_nonce(event_id, i)
             nonce = Nonce(event_id=event_id, digit_index=i, nonce_pub=newnonce[1], nonce_sec=newnonce[0])
             nonces.append(nonce)
         # print(".", end="")
@@ -213,14 +213,14 @@ class Outcome:
 
         # For signing we use the pubkey configured into cryptlib,
         # Check that signer pubkey matches the event's
-        lib_pubkey = dlcplazacryptlib.get_public_key(0)
+        lib_pubkey = dlccryptlib_oracle.get_public_key(0)
         if lib_pubkey != signer_public_key:
             raise Exception(f"Signing error: key not matching pubkey '{signer_public_key}' ({lib_pubkey})")
 
         digits = []
         for i in range(n):
             msg = Outcome.string_for_event(event_desc, event_id, i, digit_values[i])
-            sig = dlcplazacryptlib.sign_schnorr_with_nonce(msg, nonces[i].nonce_sec, 0)
+            sig = dlccryptlib_oracle.sign_schnorr_with_nonce(msg, nonces[i].nonce_sec, 0)
             digit_outcome = DigitOutcome(event_id, i, digit_values[i], nonces[i].nonce_pub, sig, msg)
             digits.append(digit_outcome)
         return Outcome(dto=outcome_dto, digit_outcomes=digits)
@@ -282,9 +282,9 @@ class Oracle:
         secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
         secret_pass = os.getenv("KEY_SECRET_PWD", default="")
 
-        _xpub = dlcplazacryptlib.init(secret_file, secret_pass)
-        public_key = dlcplazacryptlib.get_public_key(0)
-        print("dlcplazacryptlib initialized, public key:", public_key)
+        _xpub = dlccryptlib_oracle.init(secret_file, secret_pass)
+        public_key = dlccryptlib_oracle.get_public_key(0)
+        print("dlccryptlib_oracle initialized, public key:", public_key)
         return public_key
 
     def close(self):
