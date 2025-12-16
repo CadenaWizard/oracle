@@ -1,6 +1,6 @@
 from db import db_setup_from_to
 from price_common import PriceInfoSingle
-import dlcplazacryptlib
+import dlccryptlib_oracle
 
 from datetime import datetime, UTC
 import sqlite3
@@ -11,8 +11,8 @@ DUMMY_ENTROPY = "01010101010101010101010101010101"
 
 # Return Xpub and default (0th) pubkey
 def initialize_cryptlib_direct():
-    xpub = dlcplazacryptlib.init_with_entropy(DUMMY_ENTROPY, "signet")
-    pubkey = dlcplazacryptlib.get_public_key(0)
+    xpub = dlccryptlib_oracle.init_with_entropy(DUMMY_ENTROPY, "signet")
+    pubkey = dlccryptlib_oracle.get_public_key(0)
     print(f"cryptlib initialized, xpub: {xpub}  pubkey: {pubkey}")
     return xpub, pubkey
 
