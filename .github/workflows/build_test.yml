@@ -25,7 +25,7 @@ jobs:
     - name: Install Python deps
       run: ./venv/bin/pip3 install -r ./requirements.txt
     - name: Build the internal Rust library, install it as a Python module
-      run: cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
+      run: cd dlccryptlib_oracle && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
     - name: Run unit tests
       run: |
         ./venv/bin/python3 ./server/test_api_local.py

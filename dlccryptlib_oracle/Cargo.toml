@@ -1,5 +1,5 @@
 [package]
-name = "dlcplazacryptlib"
+name = "dlccryptlib_oracle"
 version = "0.3.2"
 edition = "2021"
 

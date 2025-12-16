@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
-# Test the dlcplazacryptlib library through its C-style interface
+# Test the dlccryptlib library through its C-style interface
 # Test the methods used by the app
 
 import os
@@ -14,14 +14,14 @@ class RustInterface:
         try:
             if hasattr(sys, 'getandroidapilevel'):
                 # Running on Android
-                self.lib = cdll.LoadLibrary("libdlcplazacryptlib.so")
+                self.lib = cdll.LoadLibrary("libdlccryptlib_oracle.so")
             else:
                 # Local dev environment
-                dev_path = "./target/debug/libdlcplazacryptlib.so"
+                dev_path = "./target/debug/libdlccryptlib_oracle.so"
                 if os.path.exists(dev_path):
                     self.lib = cdll.LoadLibrary(os.path.abspath(dev_path))
                 else:
-                    self.lib = cdll.LoadLibrary("libdlcplazacryptlib.so")
+                    self.lib = cdll.LoadLibrary("libdlccryptlib_oracle.so")
         except OSError as e:
             raise RuntimeError(f"Could not load Rust shared library: {e}")
 

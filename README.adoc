@@ -23,17 +23,17 @@ pip install -r ./requirements.txt
 Build the internal Rust library, requires Rust/Cargo, install it as a Python module:
 
 ```
-cd dlcplazacryptlib && maturin develop && cd ..
+cd dlccryptlib_oracle && maturin develop && cd ..
 ```
 
 (or with venv:)
 ```
-cd dlcplazacryptlib && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
+cd dlccryptlib_oracle && VIRTUAL_ENV='../venv' ../venv/bin/maturin develop && cd ..
 ```
 
 Set up the secret key used:
 ```sh
-python3 ./dlcplazacryptlib/save_secret.py --set --file secret.sec
+python3 ./dlccryptlib_oracle/save_secret.py --set --file secret.sec
 ```
 
 Enter your securely generated secret mnemonic, be sure to back it up!
