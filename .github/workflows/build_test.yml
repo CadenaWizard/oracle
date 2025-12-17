@@ -33,4 +33,6 @@ jobs:
         ./venv/bin/python3 ./server/test_event.py
         ./venv/bin/python3 ./server/test_oracle.py
         ./venv/bin/python3 ./server/test_util.py
+    - name: Run dlccryptlib Python test
+      run: cd dlccryptlib_oracle && ../venv/bin/python3 test_lib.py
 
