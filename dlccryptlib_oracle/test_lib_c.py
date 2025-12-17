@@ -68,16 +68,16 @@ try:
 except OSError:
     print("ELHASALTUNK")
 
-entropy_hex = "99d33a674ce99d33a674ce99d33a674c" # oil x 12
+entropy_hex = "00000000000000000000000000000001" # abandon x 11 actual
 network = "signet"
 
 xpub = rust_interface.init_with_entropy(entropy_hex, network)
 print("xpub:", xpub)
-assert(xpub == "tpubDCRo9GmRAvEWANJ5iSfMEqPoq3uYvjBPAAjrDj5iQMxAq7DCs5orw7m9xJes8hWYAwKuH3T63WrKfzzw7g9ucbjq4LUu5cgCLUPMN7gUkrL")
+assert(xpub == "tpubDCxVvuZwEu4oZypCT3pzos1MUoVJyjTHjfrhKFXNBkAEqBmkkzEb2dUgzpZmBWbd6wZnNmm3Ex2suMnEFUMmayH2a6S49R4pTnoQttGrxUm")
 
 pubkey0 = rust_interface.get_public_key(0)
 print("pubkey 0:", pubkey0)
-assert(pubkey0 == "0292892b831077bc87f7767215ab631ff56d881986119ff03f1b64362e9abc70cd")
+assert(pubkey0 == "031941e84b8d111e094aefc46e7181757c93a1da87c93ab519a40d9d765176e704")
 
 hash = "0001020300000000000000000000000000000000000000000000000000010203"
 sig = rust_interface.sign_hash_ecdsa(hash, 0, pubkey0)
