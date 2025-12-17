@@ -13,9 +13,9 @@ fn dlccryptlib_oracle(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(dlccryptlib_py::init, m)?)?;
     // m.add_function(wrap_pyfunction!(dlccryptlib_py::reinit_for_testing, m)?)?;
     m.add_function(wrap_pyfunction!(dlccryptlib_py::init_with_entropy, m)?)?;
-    // m.add_function(wrap_pyfunction!(dlccryptlib_py::get_xpub, m)?)?;
+    m.add_function(wrap_pyfunction!(dlccryptlib_py::get_xpub, m)?)?;
     m.add_function(wrap_pyfunction!(dlccryptlib_py::get_public_key, m)?)?;
-    // m.add_function(wrap_pyfunction!(dlccryptlib_py::get_address, m)?)?;
+    m.add_function(wrap_pyfunction!(dlccryptlib_py::get_address, m)?)?;
     // m.add_function(wrap_pyfunction!(dlccryptlib_py::verify_public_key, m)?)?;
     // m.add_function(wrap_pyfunction!(dlccryptlib_py::sign_hash_ecdsa, m)?)?;
     m.add_function(wrap_pyfunction!(dlccryptlib_py::create_deterministic_nonce, m)?)?;
