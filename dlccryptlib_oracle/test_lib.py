@@ -33,13 +33,3 @@ print('Sign again: ', dlccryptlib_oracle.sign_schnorr_with_nonce(event_id, nonce
 
 # Sign with different nonce
 print('Sign with other nonce: ', dlccryptlib_oracle.sign_schnorr_with_nonce(event_id, nonce2_arr[0], 0))
-
-nonces_pub = nonce0_pub + " " + nonce1_pub + " " + nonce2_arr[1]
-print("Combining pub nonces:", nonces_pub)
-combined_nonce_pub = dlccryptlib_oracle.combine_pubkeys(nonces_pub)
-print('Combined pub nonce:', combined_nonce_pub)
-
-nonces_sec = nonce0_arr[0] + " " + nonce1_arr[0] + " " + nonce2_arr[0]
-print("Combining sec nonces:", nonces_sec)
-combined_nonce_sec = dlccryptlib_oracle.combine_seckeys(nonces_sec)
-print('Combined sec nonce:', combined_nonce_sec)
