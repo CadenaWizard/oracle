@@ -1,0 +1,62 @@
+<html>
+
+<head>
+    <title>Cadena Bitcoin Price Oracle</title>
+    <script src="script.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body onload="page_load()">
+    <div class="main-container">
+        <!-- title section -->
+        <div class="title-section">
+            <h1>Cadena Bitcoin Price Oracle</h1>
+        </div>
+
+        <!-- symbols section -->
+        <div class="symbols-section" id="symbols-section-display">
+            <table class="symbols-table">
+                <tr>
+                    <td>
+                        <span class="symbol-number">87156</span>
+                        <span class="symbol-name">BTCUSD</span>
+                    </td>
+                    <td>
+                        <span class="symbol-number">74277</span>
+                        <span class="symbol-name">BTCEUR</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="orainfo-section" id="orainfo-display">
+            Loading Oracle information ...
+        </div>
+
+        <!-- <div class="orastatus-section" id="orastatus-display">
+            Loading Oracle staus ...
+        </div> -->
+
+        <div class="eventclass-info-section" id="eventclass-display">
+            Loading event class info ...
+        </div>
+
+        <div class="price-info-section">
+            <table>
+                <tr>
+                    <td id="price-details">
+                        Loading price info ...
+                    </td>
+                    <td id="price-sources">
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div>
+            <button onclick="load_prices()">Reload</button>
+        </div>
+    </div>
+</body>
+
+</html>

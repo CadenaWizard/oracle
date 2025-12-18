@@ -1,0 +1,103 @@
+body {
+    font-family: sans-serif;
+    background-color: darkgray;
+    color: white;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.main-container {
+    width: 80%;
+    max-width: 1200px;
+}
+
+.title-section {
+    background-color: gray;
+    color: white;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 0;
+}
+
+.title-section h1 {
+    font-size: 3em;
+    margin: 0;
+    font-weight: bold;
+}
+
+.orainfo-section {
+    background-color: gray;
+    color: white;
+    padding: 30px;
+    margin-bottom: 0;
+}
+
+.orastatus-section {
+    background-color: black;
+    color: white;
+    padding: 30px;
+    margin-bottom: 0;
+}
+
+.symbols-section {
+    background-color: black;
+    color: white;
+    padding: 20px;
+    margin-bottom: 0;
+}
+
+.eventclass-info-section {
+    background-color: black;
+    color: white;
+    padding: 30px;
+    margin-bottom: 0;
+}
+
+.price-info-section {
+    background-color: gray;
+    color: white;
+    padding: 30px;
+    margin-bottom: 0;
+}
+
+.symbols-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.symbols-table td {
+    text-align: center;
+    padding: 20px;
+    vertical-align: top;
+}
+
+.symbol-group {
+    background-color: gray;
+    padding: 10px;
+}
+
+.symbol-number {
+    font-size: 2.5em;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.symbol-name {
+    font-size: 1.8em;
+    font-weight: normal;
+}
+
+.details-section {
+    background-color: black;
+    color: white;
+    padding: 30px;
+}
+
+.details-section div {
+    font-size: 1.1em;
+    margin: 10px 0;
+    padding: 5px 0;
+}
