@@ -1,369 +1,62 @@
-<!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-<meta charset="UTF-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="generator" content="Asciidoctor 2.0.23">
-<meta name="description" content="Oracle to be used by the dlcPlaza development">
-<meta name="author" content="Szilard Gabor LADANYI">
-<title>Bitcoin Oracle Documentation</title>
-<style>
-/* Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
-
-@import url(//fonts.googleapis.com/css?family=Noto+Sans);
-@import url(https://cdn.jsdelivr.net/gh/asciidoctor/asciidoctor@2.0/data/stylesheets/asciidoctor-default.css); /* Default asciidoc style framework - important */
-
-/* CUSTOMISATIONS */
-/* Change the values in root for quick customisation. If you want even more fine grain... venture further. */
-:root{
---maincolor:#FFFFFF;
---primarycolor:#000000;
---secondarycolor:#999999; /* Title - 2*/
---tertiarycolor:#CCCCCC;
---sidebarbackground:#CACACA;
---linkcolor:#0D47A1;
---linkcoloralternate:#B71C1C;
---white:#FFFFFF;
---black:#000000;
-}
-
-/* Text styles */
-
-body{font-family: "Noto Sans",sans-serif;background-color: var(--maincolor);color:var(--black);}
-
-h1{color:var(--primarycolor) !important;font-family:"Noto Sans",sans-serif;}
-h2,h3,h4,h5,h6{color:var(--secondarycolor) !important;font-family:"Noto Sans",sans-serif;}
-.title{color:var(--black) !important;font-family:"Noto Sans",sans-serif;font-style: normal; font-weight: normal;}
-a{text-decoration: none;}
-p{font-family: "Noto Sans",sans-serif ! important}
-#toc.toc2 a:link{color:var(--linkcolor);}
-blockquote{color:var(--secondarycolor) !important}
-.quoteblock{color:var(--black)}
-.quoteblock blockquote:before{color:var(--black)}
-code{color:var(--white);background-color: var(--secondarycolor) !important}
-mark{background-color: var(--tertiarycolor)} /* Text highlighting color */
-
-/* Table styles */
-th{background-color: var(--maincolor);color:var(--black) !important;}
-td{background-color: var(--maincolor);color: var(--black) !important}
-
-
-#toc.toc2{background-color:var(--sidebarbackground);}
-#toctitle{color:var(--white);}
-
-/* Responsiveness fixes */
-video {
-  max-width: 100%;
-}
-
-@media all and (max-width: 600px) {
-table {
-  width: 55vw!important;
-  font-size: 3vw;
-}
-
-.inline-img {
-    display: inline-block;
-    margin-right: 10px;
-    vertical-align: top;
-}
-
-</style>
-<style>
-/*! Asciidoctor Tabs | Copyright (c) 2018-present Dan Allen | MIT License */
-.tabs {
-    margin-bottom: 1.25em;
-}
-
-.tablist > ul {
-    display: flex;
-    flex-wrap: wrap;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.tablist > ul li {
-    align-items: center;
-    background-color: #fff;
-    cursor: pointer;
-    display: flex;
-    font-weight: bold;
-    line-height: 1.5;
-    padding: 0.25em 1em;
-    position: relative;
-}
-
-.tablist > ul li:focus-visible {
-    outline: none;
-}
-
-.tablist.ulist,
-.tablist.ulist > ul li {
-    margin: 0;
-}
-
-.tablist.ulist > ul li + li {
-    margin-left: 0.25em;
-}
-
-.tabs .tablist li::after {
-    content: "";
-    display: block;
-    height: 1px;
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-}
-
-.tabs.is-loading .tablist li:not(:first-child),
-.tabs:not(.is-loading) .tablist li:not(.is-selected) {
-    background-color: #f5f5f5;
-}
-
-.tabs.is-loading .tablist li:first-child::after,
-.tabs:not(.is-loading) .tablist li.is-selected::after {
-    background-color: #fff;
-}
-
-/*
-.tabs:not(.is-loading) .tablist li,
-.tabs:not(.is-loading) .tablist li::after {
-  transition: background-color 200ms ease-in-out;
-}
-*/
-
-.tablist > ul p {
-    line-height: inherit;
-    margin: 0;
-}
-
-.tabpanel {
-    background-color: #fff;
-    padding: 1.25em;
-}
-
-.tablist > ul li,
-.tabpanel {
-    border: 1px solid #dcdcdc;
-}
-
-.tablist > ul li {
-    border-bottom: 0;
-}
-
-.tabs.is-loading .tabpanel + .tabpanel,
-.tabs:not(.is-loading) .tabpanel.is-hidden {
-    display: none;
-}
-
-.tabpanel > :first-child {
-    margin-top: 0;
-}
-
-/* #content is a signature of the Asciidoctor standalone HTML output */
-#content .tabpanel > :last-child,
-#content .tabpanel > :last-child > :last-child,
-#content .tabpanel > :last-child > :last-child > li:last-child > :last-child {
-    margin-bottom: 0;
-}
-
-.tablecontainer {
-    overflow-x: auto;
-}
-
-#content .tablecontainer {
-    margin-bottom: 1.25em;
-}
-
-#content .tablecontainer > table.tableblock {
-    margin-bottom: 0;
-}
-</style>
+    <title>Cadena Bitcoin Price Oracle</title>
+    <script src="script.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body id="BEGIN" class="book toc2 toc-left">
-<div id="header">
-<h1>Bitcoin Oracle Documentation</h1>
-<div class="details">
-<span id="author" class="author">Szilard Gabor LADANYI</span><br>
-<span id="email" class="email"><a href="mailto:szillerke@gmail.com">szillerke@gmail.com</a></span><br>
-</div>
-<div id="toc" class="toc2">
-<div id="toctitle">Table of contents</div>
-<ul class="sectlevel1">
-<li><a href="#_welcome">1. Welcome</a></li>
-</ul>
-</div>
-</div>
-<div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div id="TableOfContents" class="paragraph">
-<p><strong>Szilard Gabor LADANYI</strong> - 2024</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_welcome">1. Welcome</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>To the world&#8217;s first Oracle cleated by us!</p>
-</div>
-<div class="admonitionblock important">
-<table>
-<tr>
-<td class="icon">
-<img src="./icons/important.png" alt="Important">
-</td>
-<td class="content">
-<div class="paragraph">
-<p>We give you real world events</p>
-</div>
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p>visit our public API at: localhost:8000/app/docs</p>
-</div>
-</div>
-</div>
-</div>
-<div id="footer">
-<div id="footer-text">
-Last updated 2024-11-11 11:32:46 +0100
-</div>
-</div>
-<script>
-;(function () { /*! Asciidoctor Tabs | Copyright (c) 2018-present Dan Allen | MIT License */
-  'use strict'
 
-  var config = (document.currentScript || {}).dataset || {}
-  var forEach = Array.prototype.forEach
+<body onload="page_load()">
+    <div class="main-container">
+        <!-- title section -->
+        <div class="title-section">
+            <h1>Cadena Bitcoin Price Oracle</h1>
+        </div>
 
-  init(document.querySelectorAll('.tabs'))
+        <!-- symbols section -->
+        <div class="symbols-section" id="symbols-section-display">
+            <table class="symbols-table">
+                <tr>
+                    <td>
+                        <span class="symbol-number">87156</span>
+                        <span class="symbol-name">BTCUSD</span>
+                    </td>
+                    <td>
+                        <span class="symbol-number">74277</span>
+                        <span class="symbol-name">BTCEUR</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
 
-  function init (tabsBlocks) {
-    if (!tabsBlocks.length) return
-    forEach.call(tabsBlocks, function (tabs) {
-      var syncIds = tabs.classList.contains('is-sync') ? {} : undefined
-      var tablist = tabs.querySelector('.tablist ul')
-      tablist.setAttribute('role', 'tablist')
-      var start
-      forEach.call(tablist.querySelectorAll('li'), function (tab, idx) {
-        tab.tabIndex = -1
-        tab.setAttribute('role', tab.classList.add('tab') || 'tab')
-        var id, anchor, syncId
-        if (!(id = tab.id) && (anchor = tab.querySelector('a[id]'))) {
-          id = tab.id = anchor.parentNode.removeChild(anchor).id
-        }
-        var panel = id && tabs.querySelector('.tabpanel[aria-labelledby~="' + id + '"]')
-        if (!panel) return idx ? undefined : toggleSelected(tab, true) // invalid state
-        syncIds && (((syncId = tab.textContent.trim()) in syncIds) ? (syncId = undefined) : true) &&
-        (syncIds[(tab.dataset.syncId = syncId)] = tab)
-        idx || (syncIds && (start = { tab: tab, panel: panel })) ? toggleHidden(panel, true) : toggleSelected(tab, true)
-        tab.setAttribute('aria-controls', panel.id)
-        panel.setAttribute('role', 'tabpanel')
-        var onClick = syncId === undefined ? activateTab : activateTabSync
-        tab.addEventListener('click', onClick.bind({ tabs: tabs, tab: tab, panel: panel }))
-      })
-      if (!tabs.closest('.tabpanel')) {
-        forEach.call(tabs.querySelectorAll('.tabpanel table.tableblock'), function (table) {
-          var container = Object.assign(document.createElement('div'), { className: 'tablecontainer' })
-          table.parentNode.insertBefore(container, table).appendChild(table)
-        })
-      }
-      if (start) {
-        var syncGroupId
-        for (var i = 0, lst = tabs.classList, len = lst.length, className; i !== len; i++) {
-          if (!(className = lst.item(i)).startsWith('data-sync-group-id=')) continue
-          tabs.dataset.syncGroupId = syncGroupId = lst.remove(className) || className.slice(19).replace(/\u00a0/g, ' ')
-          break
-        }
-        if (syncGroupId === undefined) tabs.dataset.syncGroupId = syncGroupId = Object.keys(syncIds).sort().join('|')
-        var preferredSyncId = 'syncStorageKey' in config &&
-          window[(config.syncStorageScope || 'local') + 'Storage'].getItem(config.syncStorageKey + '-' + syncGroupId)
-        var tab = preferredSyncId && syncIds[preferredSyncId]
-        tab && Object.assign(start, { tab: tab, panel: document.getElementById(tab.getAttribute('aria-controls')) })
-        toggleSelected(start.tab, true) || toggleHidden(start.panel, false)
-      }
-    })
-    onHashChange()
-    toggleClassOnEach(tabsBlocks, 'is-loading', 'remove')
-    window.setTimeout(toggleClassOnEach.bind(null, tabsBlocks, 'is-loaded', 'add'), 0)
-    window.addEventListener('hashchange', onHashChange)
-  }
+        <div class="orainfo-section" id="orainfo-display">
+            Loading Oracle information ...
+        </div>
 
-  function activateTab (e) {
-    var tab = this.tab
-    var tabs = this.tabs || (this.tabs = tab.closest('.tabs'))
-    var panel = this.panel || (this.panel = document.getElementById(tab.getAttribute('aria-controls')))
-    querySelectorWithSiblings(tabs, '.tablist .tab', 'tab').forEach(function (el) {
-      toggleSelected(el, el === tab)
-    })
-    querySelectorWithSiblings(tabs, '.tabpanel', 'tabpanel').forEach(function (el) {
-      toggleHidden(el, el !== panel)
-    })
-    if (!this.isSync && 'syncStorageKey' in config && 'syncGroupId' in tabs.dataset) {
-      var storageKey = config.syncStorageKey + '-' + tabs.dataset.syncGroupId
-      window[(config.syncStorageScope || 'local') + 'Storage'].setItem(storageKey, tab.dataset.syncId)
-    }
-    if (!e) return
-    var loc = window.location
-    var hashIdx = loc.hash ? loc.href.indexOf('#') : -1
-    if (~hashIdx) window.history.replaceState(null, '', loc.href.slice(0, hashIdx))
-    e.preventDefault()
-  }
+        <!-- <div class="orastatus-section" id="orastatus-display">
+            Loading Oracle staus ...
+        </div> -->
 
-  function activateTabSync (e) {
-    activateTab.call(this, e)
-    var thisTabs = this.tabs
-    var thisTab = this.tab
-    var initialY = thisTabs.getBoundingClientRect().y
-    forEach.call(document.querySelectorAll('.tabs'), function (tabs) {
-      if (tabs === thisTabs || tabs.dataset.syncGroupId !== thisTabs.dataset.syncGroupId) return
-      querySelectorWithSiblings(tabs, '.tablist .tab', 'tab').forEach(function (tab) {
-        if (tab.dataset.syncId === thisTab.dataset.syncId) activateTab.call({ tabs: tabs, tab: tab, isSync: true })
-      })
-    })
-    var shiftedBy = thisTabs.getBoundingClientRect().y - initialY
-    if (shiftedBy && (shiftedBy = Math.round(shiftedBy))) window.scrollBy({ top: shiftedBy, behavior: 'instant' })
-  }
+        <div class="eventclass-info-section" id="eventclass-display">
+            Loading event class info ...
+        </div>
 
-  function querySelectorWithSiblings (scope, selector, siblingClass) {
-    var el = scope.querySelector(selector)
-    if (!el) return []
-    var result = [el]
-    while ((el = el.nextElementSibling) && el.classList.contains(siblingClass)) result.push(el)
-    return result
-  }
+        <div class="price-info-section">
+            <table>
+                <tr>
+                    <td id="price-details">
+                        Loading price info ...
+                    </td>
+                    <td id="price-sources">
+                    </td>
+                </tr>
+            </table>
+        </div>
 
-  function toggleClassOnEach (elements, className, method) {
-    forEach.call(elements, function (el) {
-      el.classList[method](className)
-    })
-  }
-
-  function toggleHidden (el, state) {
-    el.classList[(el.hidden = state) ? 'add' : 'remove']('is-hidden')
-  }
-
-  function toggleSelected (el, state) {
-    el.setAttribute('aria-selected', '' + state)
-    el.classList[state ? 'add' : 'remove']('is-selected')
-    el.tabIndex = state ? 0 : -1
-  }
-
-  function onHashChange () {
-    var id = window.location.hash.slice(1)
-    if (!id) return
-    var tab = document.getElementById(~id.indexOf('%') ? decodeURIComponent(id) : id)
-    if (!(tab && tab.classList.contains('tab'))) return
-    'syncId' in tab.dataset ? activateTabSync.call({ tab: tab }) : activateTab.call({ tab: tab })
-  }
-})()
-</script>
+        <div>
+            <button onclick="load_prices()">Reload</button>
+        </div>
+    </div>
 </body>
+
 </html>

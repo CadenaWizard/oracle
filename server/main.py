@@ -69,7 +69,9 @@ def api_price_current_all():
 def api_price_current(symbol: str):
     return oracle_app.get_current_price_info(symbol)
 
-@app.get("/")
-def read_root():
-    return {"Oracle": "API"}
+# @app.get("/")
+# def read_root():
+#     return {"Oracle": "API"}
+
+app.mount("/", StaticFiles(directory="public", html=True), name="root")
 
