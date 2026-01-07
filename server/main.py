@@ -2,14 +2,29 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-from fastapi import FastAPI
+from oracle import OracleApp
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from oracle import OracleApp
+import os
+
+load_dotenv()
+# Read debug mode from .env
+debug_mode_env = os.getenv("DEMO_MODE", "")
+demo_mode = False
+if debug_mode_env == "1":
+    demo_mode = True
+    print("Debug mode enabled")
 
 oracle_app = OracleApp.get_singleton_instance()
 
-app = FastAPI()
+if demo_mode:
+    app = FastAPI()
+else:
+    # disable API doc
+    app = FastAPI(openapi_url=None)
 
 # Specify your allowed origins here
 allowed_origins = ["*"] # allow any origin, disable CORS
@@ -22,8 +37,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
-
-app.mount("/demo", StaticFiles(directory="public_demo", html=True), name="demo")
 
 @app.get("/api/v0/oracle/oracle_info")
 def api_oracle_info():
@@ -69,9 +82,11 @@ def api_price_current_all():
 def api_price_current(symbol: str):
     return oracle_app.get_current_price_info(symbol)
 
-# @app.get("/")
-# def read_root():
-#     return {"Oracle": "API"}
+if not demo_mode:
+    # Disable demo page
+    @app.get("/demo")
+    def read_root():
+        raise HTTPException(status_code=404, detail="Not demo mode")
 
 app.mount("/", StaticFiles(directory="public", html=True), name="root")
 
