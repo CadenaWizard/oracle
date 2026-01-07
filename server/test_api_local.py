@@ -43,6 +43,7 @@ class ServerApiTestClass(unittest.TestCase):
         response = self.client.get("/api/v0/oracle/oracle_info")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
+            'horizon_days': 390.0,
             "main_public_key":"0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c",
             "public_keys": ["0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c"]
         })
