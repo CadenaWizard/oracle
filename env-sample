@@ -6,7 +6,7 @@ KEY_SECRET_FILE_NAME="./secret.sec"
 KEY_SECRET_PWD="<encryption_password_here>"
 
 # Horizon is the period in the future for which events are created in advance
-HORIZON_DAYS=396
+HORIZON_DAYS=390
 
 # Debug mode: If set to "1", allow API doc, demo page, etc.
-DEMO_MODE=1
+DEMO_MODE=0
