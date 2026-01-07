@@ -7,3 +7,6 @@ KEY_SECRET_PWD="<encryption_password_here>"
 
 # Horizon is the period in the future for which events are created in advance
 HORIZON_DAYS=396
+
+# Debug mode: If set to "1", allow API doc, demo page, etc.
+DEMO_MODE=1
