@@ -89,11 +89,9 @@ async function load_prices() {
 async function display_ora_info_and_status() {
     var htm = '<table>';
     htm += '<tr><td>Oracle public key:</td><td>' + ora_info["main_public_key"] + '</td></tr>';
-    htm += '<tr><td>TODO add horizon</td><td></td></tr>';
-    htm += '<tr><td>TODO btc address</td><td></td></tr>';
-    // htm += '</table>';
-    // htm += '<table>';
+    htm += '<tr><td>Event horizon:</td><td>' + ora_info["horizon_days"] + ' days </td></tr>';
     htm += '<tr><td>Total event count:</td><td>' + ora_status["total_event_count"] + '</td></tr>';
+    htm += '<tr><td>TODO add btc address</td><td></td></tr>';
     htm += '</table>';
     document.getElementById("orainfo-display").innerHTML = htm;
 }

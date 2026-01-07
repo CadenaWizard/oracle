@@ -348,6 +348,7 @@ class Oracle:
         return {
             "main_public_key": self.public_key,
             "public_keys": [ self.public_key ],
+            "horizon_days": self.horizon_days,
         }
 
     def _get_oracle_status_time(self, current_time: float):
