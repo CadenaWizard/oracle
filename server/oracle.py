@@ -214,6 +214,7 @@ class Outcome:
         # For signing we use the pubkey configured into cryptlib,
         # Check that signer pubkey matches the event's
         lib_pubkey = dlccryptlib_oracle.get_public_key(0)
+        # TODO reinit cryptlib if needed
         if lib_pubkey != signer_public_key:
             raise Exception(f"Signing error: key not matching pubkey '{signer_public_key}' ({lib_pubkey})")
 
@@ -273,19 +274,46 @@ class Oracle:
         else:
             price_source = price_source_override
         self.db = EventStorageDb(data_dir=data_dir)
+        # TODO: take multiple keys
         self.public_key = public_key
         self.price_source = price_source
 
-    def initialize_cryptlib() -> str:
-        # Take location of secret file from dotenv
+    def initialize_cryptlib_with_secret(secret_file: str, secret_pass: str, is_reinit: bool) -> str:
+        if is_reinit:
+            _xpub = dlccryptlib_oracle.reinit_for_testing(secret_file, secret_pass)
+        else:
+            _xpub = dlccryptlib_oracle.init(secret_file, secret_pass)
+        public_key = dlccryptlib_oracle.get_public_key(0)
+        return public_key
+
+    def initialize_cryptlib() -> list[str]:
         load_dotenv()
+
+        # Main key: Take location of secret file from dotenv
         secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
         secret_pass = os.getenv("KEY_SECRET_PWD", default="")
 
-        _xpub = dlccryptlib_oracle.init(secret_file, secret_pass)
-        public_key = dlccryptlib_oracle.get_public_key(0)
-        print("dlccryptlib_oracle initialized, public key:", public_key)
-        return public_key
+        public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=False)
+
+        public_keys = [ public_key ]
+
+        # First process extra keys
+        extra_key_secrets = os.getenv("EXTRA_KEY_SECRETS", default="")
+        extra_parts = extra_key_secrets.split(" ")
+        if len(extra_parts) >= 1:
+            for p in extra_parts:
+                if len(p) > 0 and ":" in p:
+                    pair_parts = p.split(":")
+                    if len(pair_parts) == 2:
+                        file = pair_parts[0]
+                        pwd = pair_parts[1]
+                        public_key = Oracle.initialize_cryptlib_with_secret(file, pwd, is_reinit=True)
+                        public_keys.append(public_key)
+            # Re-init with main
+            _public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=True)
+
+        print("dlccryptlib_oracle initialized, public keys:", public_keys)
+        return public_keys
 
     def close(self):
         self.db.close()
@@ -364,9 +392,14 @@ class Oracle:
         return self._get_oracle_status_time(now)
 
     def compute_event_time_range(repeat_period: int, repeat_offset: int, start_time: int, end_time: int) -> tuple[int, int]:
+        if end_time < start_time:
+            end_time = start_time
+        #print(start_time, end_time, repeat_period)
         assert(repeat_period != 0)
+        assert(start_time <= end_time)
         first_time = math.floor((start_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
         last_time = math.ceil((end_time - repeat_offset) / repeat_period) * repeat_period + repeat_offset
+        #print(start_time, end_time, first_time, last_time)
         assert(first_time <= start_time)
         assert(last_time >= end_time)
         assert(first_time <= last_time)
@@ -394,8 +427,8 @@ class Oracle:
         self.print_stats()
 
     def get_default_instance(data_dir_override = None):
-        public_key = Oracle.initialize_cryptlib()
-        o = Oracle(public_key=public_key, data_dir_override=data_dir_override)
+        public_keys = Oracle.initialize_cryptlib()
+        o = Oracle(public_key=public_keys[0], data_dir_override=data_dir_override)
         # Note: Do NOT reinitialize DB, use persisted
         return o
 

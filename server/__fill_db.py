@@ -3,8 +3,8 @@ from datetime import datetime, UTC
 import sys
 
 def do_fill_db():
-    pubkey = Oracle.initialize_cryptlib()
-    o = Oracle(public_key=pubkey)
+    pubkeys = Oracle.initialize_cryptlib()
+    o = Oracle(public_key=pubkeys[0])
     o.print_stats()
     print(f"\nOracle instance created\n")
 
