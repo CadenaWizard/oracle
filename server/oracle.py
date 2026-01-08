@@ -259,7 +259,7 @@ class Oracle:
     # @param public_keys: list[str] -- The Oracle public key or keys.
     #   The first is the main public key (used for new events), optionally followed by
     #   extra keys.
-    def __init__(self, public_keys, data_dir_override: str = None, price_source_override = None):
+    def __init__(self, public_keys, secret_files, data_dir_override: str = None, price_source_override = None):
         load_dotenv()
         # DB dir, from .env, or override
         data_dir = None
@@ -278,6 +278,7 @@ class Oracle:
             price_source = price_source_override
         self.db = EventStorageDb(data_dir=data_dir)
         self.public_keys = public_keys
+        self.secret_files = secret_files
         self.price_source = price_source
 
     def initialize_cryptlib_with_secret(secret_file: str, secret_pass: str, is_reinit: bool) -> str:
@@ -288,7 +289,11 @@ class Oracle:
         public_key = dlccryptlib_oracle.get_public_key(0)
         return public_key
 
-    def initialize_cryptlib() -> list[str]:
+    # Initialize the cryptlib library with our key.
+    # Test that the secret key is accessible, and retrieve the corresponding public key.
+    # Support one or more keys.
+    # Returns the list of public keys, and the list of matching filenames storing the corresponding secret key.
+    def initialize_cryptlib() ->tuple[list[str], list[str]]:
         load_dotenv()
 
         # Main key: Take location of secret file from dotenv
@@ -298,6 +303,7 @@ class Oracle:
         public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=False)
 
         public_keys = [ public_key ]
+        secret_files = [ secret_file ]
 
         # First process extra keys
         extra_key_secrets = os.getenv("EXTRA_KEY_SECRETS", default="")
@@ -311,11 +317,12 @@ class Oracle:
                         pwd = pair_parts[1]
                         public_key = Oracle.initialize_cryptlib_with_secret(file, pwd, is_reinit=True)
                         public_keys.append(public_key)
+                        secret_files.append(file)
             # Re-init with main
             _public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=True)
 
         print("dlccryptlib_oracle initialized, public keys:", public_keys)
-        return public_keys
+        return [public_keys, secret_files]
 
     def close(self):
         self.db.close()
@@ -429,8 +436,8 @@ class Oracle:
         self.print_stats()
 
     def get_default_instance(data_dir_override = None):
-        public_keys = Oracle.initialize_cryptlib()
-        o = Oracle(public_keys=public_keys, data_dir_override=data_dir_override)
+        public_keys, secret_files = Oracle.initialize_cryptlib()
+        o = Oracle(public_keys=public_keys, secret_files=secret_files, data_dir_override=data_dir_override)
         # Note: Do NOT reinitialize DB, use persisted
         return o
 
