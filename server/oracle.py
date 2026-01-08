@@ -256,7 +256,10 @@ class Event:
 
 
 class Oracle:
-    def __init__(self, public_key, data_dir_override: str = None, price_source_override = None):
+    # @param public_keys: list[str] -- The Oracle public key or keys.
+    #   The first is the main public key (used for new events), optionally followed by
+    #   extra keys.
+    def __init__(self, public_keys, data_dir_override: str = None, price_source_override = None):
         load_dotenv()
         # DB dir, from .env, or override
         data_dir = None
@@ -274,8 +277,7 @@ class Oracle:
         else:
             price_source = price_source_override
         self.db = EventStorageDb(data_dir=data_dir)
-        # TODO: take multiple keys
-        self.public_key = public_key
+        self.public_keys = public_keys
         self.price_source = price_source
 
     def initialize_cryptlib_with_secret(secret_file: str, secret_pass: str, is_reinit: bool) -> str:
@@ -374,8 +376,8 @@ class Oracle:
     # Note: public keys may be extended to several
     def get_oracle_info(self):
         return {
-            "main_public_key": self.public_key,
-            "public_keys": [ self.public_key ],
+            "main_public_key": self.public_keys[0],
+            "public_keys": self.public_keys,
             "horizon_days": self.horizon_days,
         }
 
@@ -428,7 +430,7 @@ class Oracle:
 
     def get_default_instance(data_dir_override = None):
         public_keys = Oracle.initialize_cryptlib()
-        o = Oracle(public_key=public_keys[0], data_dir_override=data_dir_override)
+        o = Oracle(public_keys=public_keys, data_dir_override=data_dir_override)
         # Note: Do NOT reinitialize DB, use persisted
         return o
 

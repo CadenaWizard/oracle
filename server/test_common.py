@@ -23,6 +23,7 @@ def prepare_test_secret_for_cryptlib():
     assert(os.path.exists(secret_file))
     os.environ["KEY_SECRET_FILE_NAME"] = secret_file
     os.environ["KEY_SECRET_PWD"] = "password"
+    os.environ["EXTRA_KEY_SECRETS"] = ""
 
 
 def recreate_empty_db_file(dbfile: str = "./ora.db"):
