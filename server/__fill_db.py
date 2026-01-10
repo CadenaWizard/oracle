@@ -1,10 +1,10 @@
-from oracle import Oracle
+from oracle import KeyManager, Oracle
 from datetime import datetime, UTC
 import sys
 
 def do_fill_db():
-    pubkeys, secretfiles = Oracle.initialize_cryptlib()
-    o = Oracle(public_keys=pubkeys, secret_files=secretfiles)
+    key_manager = KeyManager()
+    o = Oracle(key_manager=key_manager)
     o.print_stats()
     print(f"\nOracle instance created\n")
 

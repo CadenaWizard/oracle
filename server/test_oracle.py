@@ -1,12 +1,13 @@
 from oracle import EventClass, EventDescription, Oracle
-from test_common import PriceSourceMockConstant, initialize_cryptlib_direct, recreate_empty_db_file
+from test_common import PriceSourceMockConstant, TestKeyManager, recreate_empty_db_file
 
 import math
 import unittest
 
 
 class OracleTestClass(unittest.TestCase):
-    public_key = "?"
+    key_manager = None
+    public_keys = []
     event_classes = []
     now = 0
 
@@ -14,10 +15,12 @@ class OracleTestClass(unittest.TestCase):
     def setUpClass(cls):
         print("setUpClass")
 
-        _xpub, cls.public_key = initialize_cryptlib_direct()
+        # Custom key manager
+        cls.key_manager = TestKeyManager()
+        cls.public_keys = cls.key_manager.keys_init()
         repeat_time = 3600
         cls.now = 1762988557
-        cls.test_public_key = "0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd"
+        cls.test_public_key = cls.public_keys[0]
         repeat_first_time = int(math.floor(cls.now / repeat_time)) * repeat_time - 7 * repeat_time
         repeat_last_time = repeat_first_time + 37 * repeat_time
         cls.event_classes = [
@@ -32,7 +35,7 @@ class OracleTestClass(unittest.TestCase):
 
         # Custom price source
         price_mock = PriceSourceMockConstant(98765)
-        o = Oracle(self.public_key, data_dir_override=datadir, price_source_override=price_mock)
+        o = Oracle(key_manager=self.key_manager, data_dir_override=datadir, price_source_override=price_mock)
         return o
 
     def test_compute_event_time_range(self):
@@ -49,10 +52,10 @@ class OracleTestClass(unittest.TestCase):
     def test_init(self):
         o = self.create_oracle()
         o.print_stats()
-        self.assertEqual(o.public_key, self.public_key)
+        self.assertEqual(o.public_keys, self.public_keys)
         self.assertEqual(o.db.event_classes_len(), 0)
         self.assertEqual(o.db.events_len(), 0)
-        self.assertEqual(o.get_oracle_info()['main_public_key'], '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd')
+        self.assertEqual(o.get_oracle_info()['main_public_key'], self.test_public_key)
         o.close()
 
     # Create Oracle and fill with event classes
@@ -84,7 +87,7 @@ class OracleTestClass(unittest.TestCase):
                 'range_max_value': 9999999,
                 'range_min_value': 0,
                 'range_unit': 1,
-                'signer_public_key': '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd',
+                'signer_public_key': self.test_public_key,
             },
             'repeat_first_time': 1762963200,
             'repeat_period': 3600,
@@ -121,7 +124,8 @@ class OracleTestClass(unittest.TestCase):
             'range_min_value': 0,
             'range_max_value': 9999999,
             'event_class': 'btceur01',
-            'signer_public_key': '0323423d31a856d8d8c8f7fe46ca984ee2cdddcd8506b805417e9c382f637149fd', 'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
+            'signer_public_key': self.test_public_key,
+            'string_template': 'Outcome:btceur1762970400:{digit_index}:{digit_outcome}',
             'has_outcome': False,
         })
         o.close()

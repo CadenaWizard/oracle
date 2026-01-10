@@ -38,6 +38,20 @@ def recreate_empty_db_file(dbfile: str = "./ora.db"):
     conn.close()
 
 
+# A KeyManager that is useful for testing (doesn't need encrypted secret files)
+class TestKeyManager:
+    def __init__(self):
+        _xpub, dummy_pubkey = initialize_cryptlib_direct()
+        self.dummy_pubkey = dummy_pubkey
+
+    def keys_init(self) -> list[str]:
+        return [self.dummy_pubkey]
+
+    def keys_init_with_public_key(self, public_key: str) -> bool:
+        # Nothing to do, was done in __init__()
+        return
+
+
 # A test mock for PriceSource, returns a constant price
 class PriceSourceMockConstant:
     def __init__(self, const_price: float):

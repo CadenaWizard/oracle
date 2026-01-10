@@ -255,52 +255,60 @@ class Event:
         return event_class_dto.definition.lower() + str(time)
 
 
-class Oracle:
-    # @param public_keys: list[str] -- The Oracle public key or keys.
-    #   The first is the main public key (used for new events), optionally followed by
-    #   extra keys.
-    def __init__(self, public_keys, secret_files, data_dir_override: str = None, price_source_override = None):
-        load_dotenv()
-        # DB dir, from .env, or override
-        data_dir = None
-        if data_dir_override is not None:
-            data_dir = data_dir_override
-        else:
-            data_dir = os.getenv("DB_DIR", ".")
+# A class to:
+# - Provide the public key of the configured key pairs (or multiple)
+# - Initialize the cryptlib library with the desired public key
+class KeyManager:
+    # Returns the list of public keys (first is the main).
+    def keys_init(self) -> list[str]:
+        return self.public_keys
 
-        # Horizon, from dotenv
-        self.horizon_days = float(os.getenv("HORIZON_DAYS", 390))
-        print(f"Horizon setting: {self.horizon_days} days")
+    # Initialize the cryptlib library with the desired public key, return success.
+    # Assume that public key was returned by init().
+    def keys_init_with_public_key(self, public_key: str) -> bool:
+        # find the secret file
+        secret_file = None
+        secret_pass = None
+        for i in range(len(self.public_keys)):
+            if self.public_keys[i] == public_key:
+                # Found the pubkey. Find the password as well
+                secret_file = self.secret_files[i]
+                if i == 0:
+                    # main key
+                    secret_pass = os.getenv("KEY_SECRET_PWD", default="")
+                else:
+                    # extra key
+                    extra_key_secrets = os.getenv("EXTRA_KEY_SECRETS", default="")
+                    extra_parts = extra_key_secrets.split(" ")
+                    if len(extra_parts) >= 1:
+                        for p in extra_parts:
+                            if len(p) > 0 and ":" in p:
+                                pair_parts = p.split(":")
+                                if len(pair_parts) == 2:
+                                    file = pair_parts[0]
+                                    pwd = pair_parts[1]
+                                    if file == secret_file:
+                                        secret_pass = pwd
 
-        if price_source_override is None:
-            price_source = PriceSource()
-        else:
-            price_source = price_source_override
-        self.db = EventStorageDb(data_dir=data_dir)
-        self.public_keys = public_keys
-        self.secret_files = secret_files
-        self.price_source = price_source
+        if secret_pass == None:
+            print(f"Could not initialize for public key, filename/password not found! {public_key}")
+            return False
 
-    def initialize_cryptlib_with_secret(secret_file: str, secret_pass: str, is_reinit: bool) -> str:
-        if is_reinit:
-            _xpub = dlccryptlib_oracle.reinit_for_testing(secret_file, secret_pass)
-        else:
-            _xpub = dlccryptlib_oracle.init(secret_file, secret_pass)
-        public_key = dlccryptlib_oracle.get_public_key(0)
-        return public_key
+        public_key_loaded = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=True)
+        assert(public_key_loaded == public_key)
+        return True
 
-    # Initialize the cryptlib library with our key.
+    # Initialize the cryptlib library with our key(s).
     # Test that the secret key is accessible, and retrieve the corresponding public key.
     # Support one or more keys.
-    # Returns the list of public keys, and the list of matching filenames storing the corresponding secret key.
-    def initialize_cryptlib() ->tuple[list[str], list[str]]:
+    def __init__(self):
         load_dotenv()
 
         # Main key: Take location of secret file from dotenv
         secret_file = os.getenv("KEY_SECRET_FILE_NAME", default="./secret.sec")
         secret_pass = os.getenv("KEY_SECRET_PWD", default="")
 
-        public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=False)
+        public_key = KeyManager.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=False)
 
         public_keys = [ public_key ]
         secret_files = [ secret_file ]
@@ -319,10 +327,47 @@ class Oracle:
                         public_keys.append(public_key)
                         secret_files.append(file)
             # Re-init with main
-            _public_key = Oracle.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=True)
+            _public_key = KeyManager.initialize_cryptlib_with_secret(secret_file, secret_pass, is_reinit=True)
 
         print("dlccryptlib_oracle initialized, public keys:", public_keys)
-        return [public_keys, secret_files]
+        self.public_keys = public_keys
+        self.secret_files = secret_files
+        return
+
+    def initialize_cryptlib_with_secret(secret_file: str, secret_pass: str, is_reinit: bool) -> str:
+        if is_reinit:
+            _xpub = dlccryptlib_oracle.reinit_for_testing(secret_file, secret_pass)
+        else:
+            _xpub = dlccryptlib_oracle.init(secret_file, secret_pass)
+        public_key = dlccryptlib_oracle.get_public_key(0)
+        return public_key
+
+
+class Oracle:
+    # @param public_keys: list[str] -- The Oracle public key or keys.
+    #   The first is the main public key (used for new events), optionally followed by
+    #   extra keys.
+    def __init__(self, key_manager: any, data_dir_override: str = None, price_source_override = None):
+        load_dotenv()
+        # DB dir, from .env, or override
+        data_dir = None
+        if data_dir_override is not None:
+            data_dir = data_dir_override
+        else:
+            data_dir = os.getenv("DB_DIR", ".")
+
+        # Horizon, from dotenv
+        self.horizon_days = float(os.getenv("HORIZON_DAYS", 390))
+        print(f"Horizon setting: {self.horizon_days} days")
+
+        if price_source_override is None:
+            price_source = PriceSource()
+        else:
+            price_source = price_source_override
+        self.db = EventStorageDb(data_dir=data_dir)
+        self.key_manager = key_manager
+        self.public_keys = key_manager.keys_init()
+        self.price_source = price_source
 
     def close(self):
         self.db.close()
@@ -436,8 +481,8 @@ class Oracle:
         self.print_stats()
 
     def get_default_instance(data_dir_override = None):
-        public_keys, secret_files = Oracle.initialize_cryptlib()
-        o = Oracle(public_keys=public_keys, secret_files=secret_files, data_dir_override=data_dir_override)
+        key_manager = KeyManager()
+        o = Oracle(key_manager=key_manager, data_dir_override=data_dir_override)
         # Note: Do NOT reinitialize DB, use persisted
         return o
 
