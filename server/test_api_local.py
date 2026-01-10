@@ -30,7 +30,7 @@ class ServerApiTestClass(unittest.TestCase):
         # Overwrite the price source inside the app
         oracle_app.oracle.price_source = price_mock
         # Fill with default data for, for the test
-        oracle_app.oracle.test_initialize_with_default_data(oracle_app.oracle.public_key)
+        oracle_app.oracle.test_initialize_with_default_data(oracle_app.oracle.public_keys[0])
         print("Server started")
 
     # def tearDown(self):

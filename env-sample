@@ -1,9 +1,14 @@
 # DB folder
 DB_DIR="."
 
-# Location of the secret key file
+# Location of the secret key file. E.g.: ./secret.sec:somepassword
 KEY_SECRET_FILE_NAME="./secret.sec"
+# Encryption password for the secret file.
 KEY_SECRET_PWD="<encryption_password_here>"
+
+# Optional extra secrets (keys). A space-separted list of file:pwd pairs.
+# E.g. "./secret2.sec:somepassword ./secret3.sec:otherpassword"
+#EXTRA_KEY_SECRETS="./secret2.sec:somepassword ./secret3.sec:otherpassword"
 
 # Horizon is the period in the future for which events are created in advance
 HORIZON_DAYS=390
