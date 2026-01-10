@@ -214,7 +214,6 @@ class Outcome:
         # For signing we use the pubkey configured into cryptlib,
         # Check that signer pubkey matches the event's
         lib_pubkey = dlccryptlib_oracle.get_public_key(0)
-        # TODO reinit cryptlib if needed
         if lib_pubkey != signer_public_key:
             raise Exception(f"Signing error: key not matching pubkey '{signer_public_key}' ({lib_pubkey})")
 
@@ -675,6 +674,13 @@ class Oracle:
         for e in events:
             symbol = e.desc.definition
             value = self.get_price(symbol, pref_max_age=15)
+
+            # Check public key, reinit lib if different (old or extra key)
+            lib_public_key = dlccryptlib_oracle.get_public_key(0)
+            if lib_public_key != e.signer_public_key:
+                self.key_manager.keys_init_with_public_key(e.signer_public_key)
+                # note: don't check the result here, will be checked in Outcome.create()
+
             try:
                 outcome = Outcome.create(str(value), e.dto.event_id, e.desc, current_time, e.signer_public_key, self.get_nonces(e))
                 self.db.digitoutcomes_insert(e.dto.event_id, outcome.digits)
